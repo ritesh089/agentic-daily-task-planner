@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL: Durable executions & checkpointing
+  postgres:
+    image: postgres:16
+    container_name: daily-task-planner-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      # Database credentials (change for production!)
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: langgraph
+      # Performance tuning
+      POSTGRES_MAX_CONNECTIONS: 100
+      POSTGRES_SHARED_BUFFERS: 256MB
+    volumes:
+      # Persist database data
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Jaeger All-in-One: Observability (traces)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: daily-task-planner-jaeger
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP gRPC receiver (for our application)
+      - "4317:4317"
+      # OTLP HTTP receiver
+      - "4318:4318"
+      # Jaeger Thrift receiver (legacy)
+      - "14268:14268"
+      # Jaeger gRPC receiver
+      - "14250:14250"
+    environment:
+      # Enable OTLP receiver
+      - COLLECTOR_OTLP_ENABLED=true
+      # Storage type
+      - SPAN_STORAGE_TYPE=memory
+      # Log level
+      - LOG_LEVEL=info
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # pgAdmin: PostgreSQL Management UI (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: daily-task-planner-pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@localhost.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - app_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    profiles:
+      - management  # Only starts with: docker-compose --profile management up
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  # PostgreSQL data persistence
+  postgres_data:
+    driver: local
+  # pgAdmin data persistence
+  pgadmin_data:
+    driver: local
+

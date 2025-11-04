@@ -1,0 +1,93 @@
+# Durability Configuration
+# PostgreSQL-backed workflow checkpointing for durable executions
+
+# Enable/disable durable executions globally
+enabled: true
+
+# Service identification (used for thread ID generation)
+service_name: "daily-task-planner-agent"
+
+# PostgreSQL connection
+# Option 1: Full connection string (recommended for production)
+connection_string: "postgresql://postgres:postgres@localhost:5432/langgraph"
+
+# Option 2: Individual components (if connection_string not provided)
+# Uncomment and configure these if not using connection_string
+# postgres:
+#   host: localhost
+#   port: 5432
+#   database: langgraph
+#   user: postgres
+#   password: your_password
+
+# Checkpointing behavior
+checkpoint:
+  # Save state at each node execution
+  frequency: "each_node"
+  
+  # Store full workflow state (not just diffs)
+  mode: "full_state"
+  
+  # Maximum number of checkpoints to keep per thread (0 = unlimited)
+  max_checkpoints_per_thread: 100
+
+# Resumption behavior  
+resume:
+  # Automatically resume interrupted workflows on startup
+  auto_resume: true
+  
+  # Max age of workflows to auto-resume (hours)
+  # Workflows older than this won't be resumed automatically
+  max_age_hours: 24
+  
+  # Retry failed nodes on resume
+  retry_on_resume: true
+
+# Thread ID generation
+thread_id:
+  # Include service name in thread ID
+  include_service_name: true
+  
+  # Include timestamp (YYYYMMDD-HHMMSS format)
+  include_timestamp: true
+  
+  # Include random suffix for uniqueness
+  include_random_suffix: true
+
+# ============================================================================
+# Usage Instructions
+# ============================================================================
+# 
+# Development Setup (Local PostgreSQL):
+#   1. Install PostgreSQL:
+#      - macOS: brew install postgresql
+#      - Ubuntu: sudo apt-get install postgresql
+#   2. Start PostgreSQL:
+#      - macOS: brew services start postgresql
+#      - Ubuntu: sudo service postgresql start
+#   3. Create database:
+#      createdb langgraph
+#   4. Update connection_string above with your credentials
+#   5. Run setup:
+#      python framework/setup_postgres.py
+#
+# Production Setup:
+#   1. Provision PostgreSQL database (AWS RDS, Google Cloud SQL, etc.)
+#   2. Update connection_string with production credentials
+#   3. Ensure connection is secure (SSL, VPC, etc.)
+#   4. Run setup script to create tables
+#
+# Docker Setup (Quick Start):
+#   docker run -d \
+#     --name langgraph-postgres \
+#     -e POSTGRES_PASSWORD=postgres \
+#     -e POSTGRES_DB=langgraph \
+#     -p 5432:5432 \
+#     postgres:16
+#
+# Disable Durability (for testing):
+#   - Set enabled: false
+#   - Workflows won't be checkpointed
+#   - Faster execution (no DB overhead)
+# ============================================================================
+
