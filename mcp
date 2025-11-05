@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+#
+# MCP CLI - Command line tool for managing MCP servers
+#
+
+set -e
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$SCRIPT_DIR"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Help message
+show_help() {
+    cat << EOF
+╔═══════════════════════════════════════════════════════════════════════╗
+║                     MCP CLI - Tool Server Manager                      ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+Usage: ./mcp <command> [options]
+
+COMMANDS:
+  start [--mock]        Start MCP servers (--mock for test servers)
+  stop                  Stop MCP servers
+  status                Show MCP server status
+  test                  Test MCP server connections
+  logs <server>         View logs for email or slack server
+  config                Show MCP configuration
+
+OPTIONS:
+  -h, --help           Show this help message
+
+EXAMPLES:
+  ./mcp start           Start real MCP servers
+  ./mcp start --mock    Start mock MCP servers for testing
+  ./mcp status          Check if servers are running
+  ./mcp test            Test connection to servers
+  ./mcp logs email      View email server logs
+
+EOF
+}
+
+# Load venv
+check_venv() {
+    if [ ! -d "venv" ]; then
+        echo -e "${RED}✗ Virtual environment not found${NC}"
+        echo "  Run: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+        exit 1
+    fi
+}
+
+# Check if MCP servers are running
+check_servers() {
+    local email_pid=$(pgrep -f "mcp-servers/email-server" || echo "")
+    local slack_pid=$(pgrep -f "mcp-servers/slack-server" || echo "")
+    
+    echo "$email_pid:$slack_pid"
+}
+
+# Start MCP servers
+start_servers() {
+    local use_mock=$1
+    
+    check_venv
+    
+    echo -e "${BLUE}Starting MCP servers...${NC}"
+    
+    # Determine which servers to start
+    local email_server="server.py"
+    local slack_server="server.py"
+    
+    if [ "$use_mock" = "true" ]; then
+        email_server="mock_server.py"
+        slack_server="mock_server.py"
+        echo -e "${YELLOW}Using MOCK servers${NC}"
+    else
+        echo -e "${GREEN}Using REAL servers${NC}"
+    fi
+    
+    # Start email server
+    echo -e "  Starting email server..."
+    nohup venv/bin/python "mcp-servers/email-server/$email_server" \
+        > logs/mcp-email.log 2>&1 &
+    local email_pid=$!
+    echo "$email_pid" > /tmp/mcp-email.pid
+    
+    # Start slack server
+    echo -e "  Starting slack server..."
+    nohup venv/bin/python "mcp-servers/slack-server/$slack_server" \
+        > logs/mcp-slack.log 2>&1 &
+    local slack_pid=$!
+    echo "$slack_pid" > /tmp/mcp-slack.pid
+    
+    sleep 2
+    
+    echo -e "${GREEN}✓ MCP servers started${NC}"
+    echo -e "  Email server PID: $email_pid"
+    echo -e "  Slack server PID: $slack_pid"
+}
+
+# Stop MCP servers
+stop_servers() {
+    echo -e "${BLUE}Stopping MCP servers...${NC}"
+    
+    # Kill by PID files
+    if [ -f /tmp/mcp-email.pid ]; then
+        local pid=$(cat /tmp/mcp-email.pid)
+        kill $pid 2>/dev/null || true
+        rm /tmp/mcp-email.pid
+        echo -e "  Stopped email server (PID: $pid)"
+    fi
+    
+    if [ -f /tmp/mcp-slack.pid ]; then
+        local pid=$(cat /tmp/mcp-slack.pid)
+        kill $pid 2>/dev/null || true
+        rm /tmp/mcp-slack.pid
+        echo -e "  Stopped slack server (PID: $pid)"
+    fi
+    
+    # Also kill any remaining processes
+    pkill -f "mcp-servers/email-server" 2>/dev/null || true
+    pkill -f "mcp-servers/slack-server" 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ MCP servers stopped${NC}"
+}
+
+# Show server status
+show_status() {
+    echo -e "${BLUE}MCP Server Status:${NC}\n"
+    
+    local pids=$(check_servers)
+    local email_pid=$(echo "$pids" | cut -d: -f1)
+    local slack_pid=$(echo "$pids" | cut -d: -f2)
+    
+    if [ -n "$email_pid" ]; then
+        echo -e "  Email Server: ${GREEN}Running${NC} (PID: $email_pid)"
+    else
+        echo -e "  Email Server: ${RED}Stopped${NC}"
+    fi
+    
+    if [ -n "$slack_pid" ]; then
+        echo -e "  Slack Server: ${GREEN}Running${NC} (PID: $slack_pid)"
+    else
+        echo -e "  Slack Server: ${RED}Stopped${NC}"
+    fi
+    
+    echo ""
+}
+
+# Test servers
+test_servers() {
+    check_venv
+    
+    echo -e "${BLUE}Testing MCP servers...${NC}\n"
+    
+    # This would require a Python test script
+    echo -e "${YELLOW}Note: Server testing requires running them with --mcp flag${NC}"
+    echo -e "Run: ${GREEN}python main.py --mcp --mcp-mocks${NC}"
+}
+
+# Show logs
+show_logs() {
+    local server=$1
+    
+    if [ "$server" = "email" ]; then
+        tail -f logs/mcp-email.log
+    elif [ "$server" = "slack" ]; then
+        tail -f logs/mcp-slack.log
+    else
+        echo -e "${RED}✗ Unknown server: $server${NC}"
+        echo "  Use: email or slack"
+        exit 1
+    fi
+}
+
+# Show config
+show_config() {
+    if [ -f config/mcp_config.yaml ]; then
+        cat config/mcp_config.yaml
+    else
+        echo -e "${RED}✗ MCP configuration not found${NC}"
+        exit 1
+    fi
+}
+
+# Main command routing
+case "${1:-}" in
+    start)
+        use_mock=false
+        if [ "${2:-}" = "--mock" ]; then
+            use_mock=true
+        fi
+        start_servers $use_mock
+        ;;
+    stop)
+        stop_servers
+        ;;
+    status)
+        show_status
+        ;;
+    test)
+        test_servers
+        ;;
+    logs)
+        show_logs "${2:-}"
+        ;;
+    config)
+        show_config
+        ;;
+    -h|--help|help)
+        show_help
+        ;;
+    *)
+        show_help
+        exit 1
+        ;;
+esac
+

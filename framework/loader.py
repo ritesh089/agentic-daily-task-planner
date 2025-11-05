@@ -4,18 +4,25 @@ Dynamically loads and executes application modules using importlib
 """
 
 import importlib
+import asyncio
 from typing import Dict, Any, Optional
 from framework.observability import init_observability, create_workflow_span
 from framework.durability import init_durability
+from framework.mcp_client import init_mcp_client, shutdown_mcp_client
 
 
-def load_and_run_app(app_module_path: str, initial_state: Dict[str, Any]) -> Dict[str, Any]:
+def load_and_run_app(
+    app_module_path: str,
+    initial_state: Dict[str, Any],
+    use_mcp_mocks: bool = False
+) -> Dict[str, Any]:
     """
-    Load an application module dynamically and execute its workflow with automatic durability
+    Load an application module dynamically and execute its workflow with MCP and durability
     
     Args:
         app_module_path: Python module path (e.g., 'app.workflow')
         initial_state: Initial state dictionary for the workflow
+        use_mcp_mocks: Whether to use mock MCP servers (default: False for production)
         
     Returns:
         Final state after workflow execution
@@ -27,6 +34,16 @@ def load_and_run_app(app_module_path: str, initial_state: Dict[str, Any]) -> Dic
     
     # Initialize observability before loading app
     init_observability()
+    
+    # Initialize MCP client (always used)
+    mcp_client = None
+    print(f"🔧 Framework: Initializing MCP client (mocks: {use_mcp_mocks})...")
+    try:
+        mcp_client = asyncio.run(init_mcp_client(use_mocks=use_mcp_mocks))
+        print(f"✓ MCP client initialized")
+    except Exception as e:
+        print(f"✗ Failed to initialize MCP client: {e}")
+        raise RuntimeError(f"MCP initialization failed: {e}")
     
     # Initialize durability (PostgreSQL checkpointing)
     durability_manager = init_durability()
@@ -96,20 +113,30 @@ def load_and_run_app(app_module_path: str, initial_state: Dict[str, Any]) -> Dic
     invoke_config = {"configurable": {"thread_id": thread_id}} if thread_id else {}
     
     # Execute the workflow with observability span
-    with create_workflow_span("application_workflow") as workflow_span:
-        # Add durability attributes to span
-        workflow_span.set_attribute("framework.app_module", app_module_path)
-        workflow_span.set_attribute("framework.checkpointing_enabled", checkpointer is not None)
-        if thread_id:
-            workflow_span.set_attribute("framework.thread_id", thread_id)
+    try:
+        with create_workflow_span("application_workflow") as workflow_span:
+            # Add durability attributes to span
+            workflow_span.set_attribute("framework.app_module", app_module_path)
+            workflow_span.set_attribute("framework.checkpointing_enabled", checkpointer is not None)
+            workflow_span.set_attribute("framework.mcp_enabled", True)
+            workflow_span.set_attribute("framework.mcp_mocks", use_mcp_mocks)
+            if thread_id:
+                workflow_span.set_attribute("framework.thread_id", thread_id)
+            
+            # Invoke workflow with config (includes thread_id for checkpointing)
+            result = workflow.invoke(initial_state, config=invoke_config)
+            
+            # Add framework-level metrics
+            workflow_span.set_attribute("framework.execution_complete", True)
         
-        # Invoke workflow with config (includes thread_id for checkpointing)
-        result = workflow.invoke(initial_state, config=invoke_config)
-        
-        # Add framework-level metrics
-        workflow_span.set_attribute("framework.execution_complete", True)
+        return result
     
-    return result
+    finally:
+        # Cleanup: Shutdown MCP client if it was initialized
+        if mcp_client:
+            print(f"\n🔌 Framework: Shutting down MCP client...")
+            asyncio.run(shutdown_mcp_client())
+            print(f"✓ MCP client shutdown complete")
 
 
 def get_app_config(app_module_path: str) -> Dict[str, Any]:

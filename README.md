@@ -1,468 +1,413 @@
-# Daily Task Planner Agent
+# Agentic Workflow Framework
 
-A LangGraph-based multi-agent system that collects and summarizes your emails and Slack messages, extracts actionable tasks, prioritizes them, and sends you a daily todo list using local LLM (Ollama).
+A **production-ready framework** for building multi-agent workflows with built-in **observability**, **durability**, and **MCP (Model Context Protocol)** integration.
 
-## ✨ Key Features
+## ✨ Framework Features
 
-- **Task Extraction & Prioritization**: Automatically extracts actionable tasks and assigns priorities (P0-P3)
-- **Email Todo List Delivery**: Sends prioritized todo list via email with HTML formatting
-- **Durable Executions**: PostgreSQL-backed checkpointing with automatic resumption
-- **Mock Agents**: Test without real APIs, simulate failures for checkpoint testing ([Guide](MOCK_AGENTS_GUIDE.md))
-- **OpenTelemetry Observability**: Distributed tracing and metrics with auto-instrumentation
-- **Framework/App Architecture**: Clean separation of concerns with dynamic loading
-- **Modular Design**: Easy to extend with new agents or applications
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for architectural details.
+- **🔧 MCP Architecture**: Clean agent/tool separation via Model Context Protocol
+- **📊 OpenTelemetry**: Automatic tracing and metrics for all agents
+- **💾 Durable Executions**: PostgreSQL-backed checkpointing with auto-resumption  
+- **🎯 Observable State Graph**: Drop-in replacement for LangGraph with instrumentation
+- **🧪 Mock MCP Servers**: Test without real APIs
+- **🔌 Dynamic Loading**: Framework dynamically loads and executes your workflows
+- **📦 Modular Design**: Reusable framework, multiple example workflows
 
 ## 🏗️ Architecture
 
-This application uses a **framework/application architecture** that separates cross-cutting concerns (observability) from business logic (agents and workflow):
-
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         main.py                             │
-│                      (Entry Point)                          │
-└────────────────┬────────────────────────────────────────────┘
-                 │
-        ┌────────┴────────┐
-        ↓                 ↓
-┌──────────────┐    ┌──────────────┐
-│  framework/  │    │     app/     │
-│              │    │              │
-│• observ.py   │    │• workflow.py │
-│  (OTEL)      │    │• config.py   │
-│• loader.py   │    │• agents/     │
-│  (Dynamic)   │    │  - email     │
-└──────────────┘    │  - slack     │
-                    │  - task      │
-                    │  - comm      │
-                    └──────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    Your Application                             │
+│                   (examples/your-app/)                          │
+│                                                                 │
+│  app/workflow.py     - build_workflow() function               │
+│  app/agents/         - Your agent implementations               │
+│  config/             - App-specific configuration               │
+│  main.py             - Entry point                              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    Framework (Reusable)                         │
+│                                                                 │
+│  Observability  │  Durability   │  MCP Client   │  Loader     │
+│  • OTEL         │  • PostgreSQL │  • Servers    │  • Dynamic  │
+│  • Tracing      │  • Checkpoints│  • Tools      │  • Execute  │
+│  • Metrics      │  • Resume     │  • Discovery  │  • Cleanup  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Framework Layer**: Cross-cutting concerns (OpenTelemetry)
-**Application Layer**: Business logic (agents + workflow)
-**Entry Point**: Uses framework to dynamically load app
+## 📚 Documentation
 
-### Module Structure
+### For Framework Users
 
-```
-daily-task-planner-agent/
-├── main.py                       # Entry point
-├── framework/                    # Cross-cutting concerns
-│   ├── observability.py          # OTEL instrumentation
-│   └── loader.py                 # Dynamic app loading
-├── app/                          # Business logic
-│   ├── workflow.py               # LangGraph workflow
-│   ├── config.py                 # App configuration
-│   └── agents/                   # Agent implementations
-│       ├── email_agents.py       # Email collection & summarization
-│       ├── slack_agents.py       # Slack collection & summarization
-│       ├── task_agents.py        # Task extraction & prioritization
-│       └── communication_agents.py  # Email sending
-├── config/                       # Configuration files
-│   └── observability_config.yaml # OTEL configuration
-├── run_multi_agent.sh            # Multi-agent runner script
-├── start_with_tracing.sh         # Run with tracing enabled
-├── requirements.txt              # Python dependencies
-├── credentials.json              # Gmail OAuth credentials (git-ignored)
-├── slack_credentials.json        # Slack OAuth token (git-ignored)
-├── ARCHITECTURE.md               # Architecture details
-├── SETUP.md                      # Setup guide
-└── SLACK_SETUP.md                # Slack setup guide
-```
+- **[Framework Guide](docs/FRAMEWORK_GUIDE.md)** - How to use the framework
+- **[Create Workflow](docs/CREATE_WORKFLOW.md)** - Step-by-step tutorial for building workflows
+- **[MCP Architecture](docs/MCP_ARCHITECTURE.md)** - Understanding MCP integration
+- **[Framework Architecture](docs/ARCHITECTURE.md)** - Framework internals
+- **[Durability](docs/DURABILITY.md)** - Checkpointing & resumption details
+
+### Quick Links
+
+- **Examples**: See `examples/` directory for complete working workflows
+- **MCP Servers**: See `mcp-servers/` for tool server implementations
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 1. **Python 3.13+** with venv
-2. **Ollama** with llama3.2 model
-   ```bash
-   brew install ollama
-   ollama pull llama3.2
-   ```
-3. **PostgreSQL** (for durable executions) - See [INSTALL_DURABILITY.md](INSTALL_DURABILITY.md)
-4. **Gmail API credentials** - See [Google Cloud Console](https://console.cloud.google.com/)
-5. **Slack User Token** (optional) - See [SLACK_SETUP.md](SLACK_SETUP.md)
+2. **Docker & Docker Compose** (for PostgreSQL and observability)
+3. **Ollama** (if using LLM-based agents)
 
 ### Installation
 
 ```bash
-# Clone/navigate to project
-cd daily-task-planner-agent
+# Clone repo
+git clone <repo-url>
+cd agentic-daily-task-planner
 
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
 
-# Install dependencies
+# Install framework dependencies
 pip install -r requirements.txt
 
-# Setup credentials
-cp slack_credentials.json.example slack_credentials.json
-# Edit slack_credentials.json with your token
+# Start infrastructure (PostgreSQL, Jaeger)
+docker-compose up -d
 ```
 
-### Running
+### Run an Example
 
-#### Standard Run
+```bash
+# Daily Task Planner example
+cd examples/daily-task-planner
+
+# With mock servers (no real API calls)
+python main.py --mock
+
+# With real servers (requires credentials)
+python main.py
+```
+
+## 📂 Project Structure
+
+```
+agentic-daily-task-planner/
+├── framework/                   # Reusable framework
+│   ├── observability.py         # OTEL integration
+│   ├── durability.py            # PostgreSQL checkpointing
+│   ├── mcp_client.py            # MCP client
+│   ├── loader.py                # Dynamic app loading
+│   └── observable_state_graph.py
+│
+├── mcp-servers/                 # Shared MCP tool servers
+│   ├── email-server/            # Gmail MCP server
+│   │   ├── server.py            # Real Gmail API
+│   │   └── mock_server.py       # Mock for testing
+│   └── slack-server/            # Slack MCP server
+│       ├── server.py            # Real Slack API
+│       └── mock_server.py       # Mock for testing
+│
+├── examples/                    # Example workflows
+│   ├── daily-task-planner/      # Email/Slack task planner
+│   │   ├── app/
+│   │   │   ├── workflow.py
+│   │   │   ├── config.py
+│   │   │   └── agents/
+│   │   ├── config/
+│   │   ├── main.py
+│   │   └── README.md
+│   │
+│   └── [your-workflow]/         # Add your own!
+│
+├── docs/                        # Documentation
+│   ├── FRAMEWORK_GUIDE.md       # Framework usage
+│   ├── CREATE_WORKFLOW.md       # Workflow creation tutorial
+│   ├── MCP_ARCHITECTURE.md      # MCP details
+│   ├── ARCHITECTURE.md          # Framework architecture
+│   └── DURABILITY.md            # Checkpointing details
+│
+├── config/                      # Shared config templates
+├── docker-compose.yml           # Infrastructure (PostgreSQL, Jaeger)
+├── requirements.txt             # Framework dependencies
+└── README.md                    # This file
+```
+
+## 🎯 Creating Your Own Workflow
+
+### Option 1: Follow the Tutorial
+
+See **[CREATE_WORKFLOW.md](docs/CREATE_WORKFLOW.md)** for a complete step-by-step guide to building a news summarizer workflow from scratch.
+
+### Option 2: Quick Template
+
+```bash
+# Create your app structure
+mkdir -p examples/your-workflow/app/agents
+mkdir -p examples/your-workflow/config
+cd examples/your-workflow
+```
+
+**1. Define your state** (`app/workflow.py`):
+
+```python
+from typing import TypedDict, List
+
+class YourState(TypedDict):
+    input_data: str
+    result: str
+    errors: List[str]
+```
+
+**2. Create agents** (`app/agents/your_agents.py`):
+
+```python
+def your_agent(state):
+    print("🤖 Agent: Working...")
+    state['result'] = process(state['input_data'])
+    return state
+```
+
+**3. Build workflow** (`app/workflow.py`):
+
+```python
+from framework import ObservableStateGraph
+from langgraph.graph import START, END
+
+def build_workflow():
+    workflow = ObservableStateGraph(YourState)
+    workflow.add_node("agent", your_agent)
+    workflow.add_edge(START, "agent")
+    workflow.add_edge("agent", END)
+    return workflow
+```
+
+**4. Create entry point** (`main.py`):
+
+```python
+import os, sys
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
+
+from framework.loader import load_and_run_app
+from app.config import get_initial_state
+
+def main():
+    result = load_and_run_app('app.workflow', get_initial_state())
+    print(result['result'])
+
+if __name__ == "__main__":
+    main()
+```
+
+**5. Run it!**
 
 ```bash
 python main.py
 ```
 
-Or use the runner script (handles Ollama setup automatically):
+See full tutorial: **[CREATE_WORKFLOW.md](docs/CREATE_WORKFLOW.md)**
 
-```bash
-./run_multi_agent.sh
-```
+## 🔧 Framework API
 
-This will:
-- ✅ Start Ollama (if not running)
-- ✅ Collect emails from last 24 hours
-- ✅ Collect Slack messages (DMs, channels, mentions)
-- ✅ Extract and prioritize tasks
-- ✅ Send todo list via email
-- ✅ Display formatted output
-- ✅ Clean up automatically
+### Core Components
 
-#### With Distributed Tracing
+#### 1. Observable State Graph
 
-```bash
-./start_with_tracing.sh
-```
-
-Starts Jaeger and enables OpenTelemetry tracing. View traces at http://localhost:16686
-
-## 📦 Modules
-
-### Framework Layer
-
-#### `framework/observability.py`
-**Purpose**: OpenTelemetry instrumentation  
-**Provides**: Tracing, metrics, auto-instrumentation via `ObservableStateGraph`
-
-#### `framework/loader.py`
-**Purpose**: Dynamic application loading  
-**Provides**: `load_and_run_app()` - loads apps via `importlib`
-
-### Application Layer
-
-#### `app/workflow.py`
-**Purpose**: LangGraph workflow definition  
-**Provides**: `build_workflow()` - returns compiled workflow  
-**Contains**: `MultiAgentState`, `aggregator_agent()`
-
-#### `app/config.py`
-**Purpose**: Application configuration  
-**Provides**: `get_app_config()`, `get_initial_state()`
-
-#### `app/agents/email_agents.py`
-
-**Purpose**: Email operations
-
-**Agents**:
-1. **`email_collector_agent`**
-   - Connects to Gmail API
-   - Fetches emails within time range
-   - Extracts sender, subject, body
-   - Updates state with collected emails
-
-2. **`email_summarizer_agent`**
-   - Takes collected emails from state
-   - Formats for LLM prompt
-   - Generates concise summary
-   - Updates state with summary
-
-#### `app/agents/slack_agents.py`
-
-**Purpose**: Slack operations
-
-**Agents**:
-1. **`slack_collector_agent`**
-   - Connects to Slack API
-   - Fetches DMs, channel messages, mentions
-   - Handles multiple message types
-   - Updates state with collected messages
-
-2. **`slack_summarizer_agent`**
-   - Takes collected messages from state
-   - Formats for LLM prompt
-   - Generates concise summary
-   - Updates state with summary
-
-#### `app/agents/task_agents.py`
-
-**Purpose**: Task extraction and prioritization
-
-**Agents**:
-1. **`task_extractor_agent`**
-   - Reads both emails and Slack messages from state
-   - Uses LLM to identify actionable tasks
-   - Extracts who requested each task
-   - Identifies urgency indicators (deadlines, "urgent", "ASAP")
-   - Returns structured JSON of tasks
-   - Updates state with extracted tasks
-
-2. **`task_prioritizer_agent`**
-   - Takes extracted tasks from state
-   - Uses LLM to assign priority levels:
-     - **P0 (Critical)**: Urgent deadlines, blocks others, executive requests
-     - **P1 (High)**: Important with deadlines this week
-     - **P2 (Medium)**: Important but not urgent
-     - **P3 (Low)**: Nice to have, no deadline
-   - Estimates effort (Quick/Medium/Large)
-   - Provides recommended actions
-   - Updates state with prioritized tasks
-
-#### `app/agents/communication_agents.py`
-
-**Purpose**: Communication and notification delivery
-
-**Agents**:
-1. **`email_sender_agent`**
-   - Takes prioritized tasks from state
-   - Formats todo list in both plain text and HTML
-   - Uses Gmail API to send email to your address
-   - Creates beautiful, color-coded priority sections
-   - Includes all task details (requester, action, effort, reasoning)
-   - Updates state with send status
-   - Handles errors gracefully (skips if no tasks)
-
-## 🔧 Configuration
-
-### Time Range
-
-Edit `slack_credentials.json`:
-```json
-{
-  "time_range_hours": 24   // Default: 24 hours
-}
-```
-
-### Slack Channels
-
-Add specific channels to monitor:
-```json
-{
-  "user_token": "xoxp-...",
-  "channels": [
-    "C01234567",  // Channel ID
-    "C98765432"
-  ]
-}
-```
-
-## 🔐 Security
-
-All credentials are:
-- ✅ **Git-ignored** (listed in `.gitignore`)
-- ✅ **Local only** (never committed)
-- ✅ **File-based** (no environment variables needed)
-
-Protected files:
-- `credentials.json` - Gmail OAuth credentials
-- `slack_credentials.json` - Slack user token
-- `token.json` - Gmail token cache
-
-## 🎯 Extending the System
-
-### Adding New Agents
-
-1. **Create agent file** (e.g., `discord_agents.py`):
-   ```python
-   def discord_collector_agent(state: Dict) -> Dict:
-       # Your logic here
-       return state
-   ```
-
-2. **Update `multi_agent_summarizer.py`**:
-   ```python
-   from discord_agents import discord_collector_agent
-   
-   # Add to workflow
-   workflow.add_node("discord_collector", discord_collector_agent)
-   workflow.add_edge("slack_collector", "discord_collector")
-   ```
-
-3. **Update state definition**:
-   ```python
-   class MultiAgentState(TypedDict):
-       # ... existing fields ...
-       discord_messages: List[Dict[str, str]]
-       discord_summary: str
-   ```
-
-### Parallel Execution
-
-To run collectors in parallel, use conditional edges:
 ```python
-from langgraph.graph import StateGraph, START, END
+from framework import ObservableStateGraph
 
-def route_to_summarizers(state):
-    return ["email_summarizer", "slack_summarizer"]
+# Drop-in replacement for StateGraph
+# Automatically instruments all nodes with tracing
+workflow = ObservableStateGraph(YourStateType)
+```
 
-workflow.add_conditional_edges(
-    "collectors_done",
-    route_to_summarizers
+#### 2. MCP Tool Calls
+
+```python
+from framework import run_async_tool_call
+
+# Call MCP tools from your agents
+result = run_async_tool_call(
+    server_name="email",
+    tool_name="send_email",
+    arguments={"to": "user@example.com", "subject": "Hello"}
 )
 ```
 
-## 🐛 Troubleshooting
+#### 3. Dynamic Loading
 
-### No emails/messages found
-- Check time range configuration
-- Verify OAuth permissions
-- Ensure credentials are valid
+```python
+from framework.loader import load_and_run_app
 
-### LLM errors
+# Framework loads and executes your workflow
+result = load_and_run_app(
+    'app.workflow',           # Your module path
+    initial_state,            # Your starting state
+    use_mcp_mocks=False       # Use real or mock servers
+)
+```
+
+### Framework Services
+
+The framework automatically provides:
+
+✅ **OpenTelemetry** - Every agent is traced  
+✅ **PostgreSQL Checkpointing** - State saved after each node  
+✅ **MCP Client** - Connected to tool servers  
+✅ **Auto-resumption** - Interrupted workflows resume automatically  
+✅ **Error Handling** - Graceful degradation  
+
+## 📦 Example Workflows
+
+### Daily Task Planner
+
+**Location**: `examples/daily-task-planner/`
+
+**Description**: Collects emails and Slack messages, extracts tasks, prioritizes them, and sends a daily todo list.
+
+**Features**:
+- Email collection via MCP
+- Slack message collection via MCP  
+- LLM-based task extraction
+- Priority assignment (P0-P3)
+- HTML email delivery
+- Full durability support
+
+**Run**:
 ```bash
-# Check Ollama is running
-ollama list
-
-# Restart Ollama
-killall ollama
-ollama serve
+cd examples/daily-task-planner
+python main.py --mock
 ```
 
-### Import errors
+### [Add Your Workflow Here!]
+
+See `docs/CREATE_WORKFLOW.md` to build your own.
+
+## 🧪 Testing
+
+### Test with Mock Servers
+
 ```bash
-# Ensure venv is activated
-source venv/bin/activate
-
-# Reinstall dependencies
-pip install -r requirements.txt
+# Any workflow can use mocks
+python main.py --mock
 ```
 
-## 📊 Output Format
+### Test Durability
 
+```bash
+# Framework provides durability testing
+./test_durability.sh
 ```
-================================================================================
-📊 MULTI-AGENT COMMUNICATION SUMMARY
-================================================================================
 
-Time Range: Last 24 hours
-Generated: 2025-11-03 14:30:00
+### Unit Tests
 
-================================================================================
-🎯 PRIORITIZED TODO LIST (8 tasks)
-================================================================================
+```python
+import pytest
+from app.agents.your_agents import your_agent
 
-🔴 CRITICAL (2 tasks):
+def test_agent():
+    state = {'input': 'test', 'errors': []}
+    result = your_agent(state)
+    assert result['output'] == 'expected'
+```
 
-  1. Review and approve Q4 budget proposal before EOD
-     👤 Requested by: Sarah Chen (Email)
-     📝 Action: Review attached spreadsheet and provide approval by 5 PM
-     ⏱️  Effort: Medium (1-4h)
-     💡 Why: Executive request with today's deadline
+## 🐳 Deployment
 
-  2. Fix production bug causing checkout failures
-     👤 Requested by: John Smith (Slack)
-     📝 Action: Investigate error logs and deploy hotfix
-     ⏱️  Effort: Large (> 4h)
-     💡 Why: Blocking customer transactions, urgent priority
+### Docker Compose
 
-🟠 HIGH (3 tasks):
+The framework includes PostgreSQL and Jaeger:
 
-  1. Prepare presentation for Friday's client meeting
-     👤 Requested by: Marketing Team (Email)
-     📝 Action: Create slide deck with Q3 results
-     ⏱️  Effort: Medium (1-4h)
-     💡 Why: Important client meeting this week
+```bash
+# Start infrastructure
+docker-compose up -d
 
-  2. Code review for authentication feature PR
-     👤 Requested by: Alice Johnson (Slack)
-     📝 Action: Review pull request #1234 and provide feedback
-     ⏱️  Effort: Quick (< 1h)
-     💡 Why: Blocks team member's work
+# Check status
+docker-compose ps
 
-🟡 MEDIUM (2 tasks):
+# View logs
+docker-compose logs -f postgres
+docker-compose logs -f jaeger
+```
 
-  1. Update documentation for API v2
-     👤 Requested by: DevRel Team (Email)
-     📝 Action: Add examples and update changelog
-     ⏱️  Effort: Medium (1-4h)
-     💡 Why: Important for developer experience
+### Environment Variables
 
-🟢 LOW (1 task):
+```bash
+# PostgreSQL
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/langgraph
 
-  1. Review team building activity proposals
-     👤 Requested by: HR (Slack)
-     📝 Action: Vote on options by next week
-     ⏱️  Effort: Quick (< 1h)
-     💡 Why: No immediate deadline
-
-================================================================================
-📧 EMAIL SUMMARY (5 emails)
-================================================================================
-
-• Urgent budget approval needed from leadership
-• Client meeting prep materials shared by marketing
-• Documentation updates requested for API changes
-• Financial notifications and account updates
-• Promotional offers and subscription renewals
-
-================================================================================
-💬 SLACK SUMMARY (12 messages)
-================================================================================
-
-• Production bug reported by engineering team
-• Code review requests pending in #dev-team
-• Team standup updates in #engineering
-• Client feedback discussion in #product
-• Team building poll from HR
-
-================================================================================
-📨 COMMUNICATION STATUS
-================================================================================
-
-✓ Successfully sent to your-email@example.com
-
-================================================================================
+# OpenTelemetry
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_SERVICE_NAME=your-workflow
 ```
 
 ## 📊 Observability
 
-The application includes full OpenTelemetry instrumentation for traces, metrics, and logs.
+### View Traces
 
-### View Traces in Jaeger (3 minutes)
+1. Start Jaeger: `docker-compose up -d jaeger`
+2. Run your workflow
+3. Open: http://localhost:16686
+4. Select your service
+5. View traces with all agent spans!
+
+### View Database
+
+1. Start pgAdmin: `docker-compose up -d pgadmin`  
+2. Open: http://localhost:5050
+3. Login: `admin@admin.com` / `admin`
+4. View checkpoints table
+
+## 🛠️ MCP Tool Servers
+
+The framework uses MCP for external service integration:
+
+- **Email Server** (`mcp-servers/email-server/`) - Gmail operations
+- **Slack Server** (`mcp-servers/slack-server/`) - Slack operations
+
+### Create Your Own MCP Server
+
+See `docs/MCP_ARCHITECTURE.md` for details on creating custom tool servers.
+
+### Managing Servers
 
 ```bash
-# 1. Start Jaeger
-docker-compose up -d
-
-# 2. Enable OTLP in observability_config.yaml
-#    Set: exporters.otlp = true
-
-# 3. Run application
-python multi_agent_summarizer.py
-
-# 4. View traces at http://localhost:16686
+./mcp status         # Check server status
+./mcp logs email     # View email server logs
+./mcp logs slack     # View slack server logs
 ```
-
-See [QUICK_START_OBSERVABILITY.md](QUICK_START_OBSERVABILITY.md) for details.
-
-### Features
-- ✅ **Automatic instrumentation** - Zero code changes needed
-- ✅ **Distributed tracing** - See full workflow execution
-- ✅ **Performance metrics** - Agent duration, message counts
-- ✅ **Error tracking** - Detailed failure information
-- ✅ **Configuration-driven** - Enable/disable without code changes
-
-Full guide: [OBSERVABILITY_SETUP.md](OBSERVABILITY_SETUP.md)
-
-## 📚 Additional Documentation
-
-- [SLACK_SETUP.md](SLACK_SETUP.md) - Detailed Slack configuration guide
-- [OBSERVABILITY_SETUP.md](OBSERVABILITY_SETUP.md) - Complete observability guide
-- [QUICK_START_OBSERVABILITY.md](QUICK_START_OBSERVABILITY.md) - 3-minute trace viewing
-- [AUTO_INSTRUMENTATION.md](AUTO_INSTRUMENTATION.md) - Auto-instrumentation details
 
 ## 🤝 Contributing
 
-This is a personal project, but feel free to fork and customize for your needs!
+We welcome contributions!
 
-## 📄 License
+1. **New Examples** - Add workflows to `examples/`
+2. **Framework Features** - Enhance `framework/`
+3. **MCP Servers** - Add tool servers to `mcp-servers/`
+4. **Documentation** - Improve guides in `docs/`
 
-MIT License - Use freely!
+## 📖 Learn More
 
+- **[Framework Guide](docs/FRAMEWORK_GUIDE.md)** - Complete framework reference
+- **[Create Workflow](docs/CREATE_WORKFLOW.md)** - Step-by-step tutorial
+- **[MCP Architecture](docs/MCP_ARCHITECTURE.md)** - MCP integration details
+- **[Architecture](docs/ARCHITECTURE.md)** - Framework internals
+- **[Durability](docs/DURABILITY.md)** - Checkpointing & resumption
+
+## 📝 License
+
+[Add your license here]
+
+## 🙏 Acknowledgments
+
+Built with:
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Workflow orchestration
+- [Model Context Protocol](https://modelcontextprotocol.io/) - Tool server protocol
+- [OpenTelemetry](https://opentelemetry.io/) - Observability
+- [PostgreSQL](https://www.postgresql.org/) - Durable storage
+
+---
+
+**Ready to build your own agentic workflow?**  
+Start with the tutorial: **[CREATE_WORKFLOW.md](docs/CREATE_WORKFLOW.md)** 🚀

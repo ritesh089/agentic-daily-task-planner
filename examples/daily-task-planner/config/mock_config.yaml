@@ -1,0 +1,42 @@
+active_scenario: default
+enabled: true
+mocks:
+  email:
+    collection_delay: 0.5
+    email_count: 5
+    enabled: true
+    summarization_delay: 1.0
+  slack:
+    collection_delay: 0.8
+    enabled: true
+    include_channels: true
+    include_dms: true
+    include_mentions: true
+    message_count: 6
+    summarization_delay: 1.2
+scenarios:
+  default:
+    email_collection_fails: false
+    email_summarization_fails: false
+    slack_collection_fails: false
+    slack_summarization_fails: false
+  email_collection_failure:
+    email_collection_fails: true
+    email_summarization_fails: false
+    slack_collection_fails: false
+    slack_summarization_fails: false
+  email_summarization_failure:
+    email_collection_fails: false
+    email_summarization_fails: true
+    slack_collection_fails: false
+    slack_summarization_fails: false
+  multiple_failures:
+    email_collection_fails: false
+    email_summarization_fails: true
+    slack_collection_fails: false
+    slack_summarization_fails: true
+  slack_collection_failure:
+    email_collection_fails: false
+    email_summarization_fails: false
+    slack_collection_fails: true
+    slack_summarization_fails: false

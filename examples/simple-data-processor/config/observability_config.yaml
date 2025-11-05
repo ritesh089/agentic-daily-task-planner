@@ -1,0 +1,9 @@
+service_name: "simple-data-processor"
+
+exporters:
+  console: true
+  otlp:
+    traces: true
+    metrics: false
+    endpoint: "http://localhost:4317"
+

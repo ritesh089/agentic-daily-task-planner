@@ -1,0 +1,6 @@
+# MCP Configuration
+# This simple example doesn't use MCP tool servers
+use_mocks: false
+
+servers: {}
+

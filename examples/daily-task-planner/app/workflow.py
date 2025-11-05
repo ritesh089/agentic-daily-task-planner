@@ -1,6 +1,6 @@
 """
 Application Workflow
-Defines the LangGraph workflow for the Daily Task Planner Agent
+Defines the LangGraph workflow for the Daily Task Planner Agent with MCP
 """
 
 from datetime import datetime
@@ -10,11 +10,19 @@ from langgraph.graph import START, END
 # Import framework's ObservableStateGraph
 from framework import ObservableStateGraph
 
-# Import agent loader (dynamically loads real or mock agents)
-from app.agents.agent_loader import get_email_agents, get_slack_agents, load_mock_config
-
-# Import task agents (always real)
-from app.agents import (
+# Import all agents (all use MCP tool servers)
+from app.agents.email_agents import (
+    email_collector_agent,
+    email_summarizer_agent
+)
+from app.agents.slack_agents import (
+    slack_collector_agent,
+    slack_summarizer_agent
+)
+from app.agents.communication_agents import (
+    email_sender_agent
+)
+from app.agents.task_agents import (
     task_extractor_agent,
     task_prioritizer_agent
 )
@@ -147,25 +155,17 @@ def aggregator_agent(state: MultiAgentState) -> MultiAgentState:
 
 def build_workflow():
     """
-    Builds the multi-agent LangGraph workflow with auto-instrumentation
+    Builds the multi-agent LangGraph workflow with MCP tool servers
     
     This is the public API that the framework calls via importlib.
-    Returns a compiled LangGraph workflow ready for execution.
+    Returns an uncompiled LangGraph workflow (framework will compile with checkpointer).
     
-    Dynamically loads real or mock agents based on config/mock_config.yaml
+    All agents use MCP tool servers for email/Slack operations.
+    Use --mock flag to switch between real and mock MCP servers.
     """
     
-    # Load agents (real or mock based on configuration)
-    email_collector_agent, email_summarizer_agent = get_email_agents()
-    slack_collector_agent, slack_summarizer_agent = get_slack_agents()
-    
-    # Dynamically load email sender (real or mock)
-    # Must be done here instead of module-level to allow test scenarios to change config
-    _mock_config = load_mock_config()
-    if _mock_config.get('enabled', False):
-        from app.agents.mocks.communication_agents import email_sender_agent
-    else:
-        from app.agents.communication_agents import email_sender_agent
+    # All agents are already imported at module level
+    # They all use MCP tool servers (real or mock depending on --mock flag)
     
     # Use ObservableStateGraph for automatic instrumentation of all nodes
     # Observability is completely decoupled - can be disabled in config

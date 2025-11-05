@@ -1,0 +1,34 @@
+# MCP (Model Context Protocol) Configuration
+# MCP is always enabled - agents communicate with email/Slack via MCP tool servers
+
+# Use mock MCP servers for testing (default: false for production)
+# If true, uses mock_server.py instead of server.py
+use_mocks: false
+
+# MCP Servers Configuration
+servers:
+  email:
+    name: "email"
+    description: "Gmail operations via MCP"
+    tools:
+      - name: "collect_emails"
+        description: "Collect emails from Gmail"
+      - name: "send_email"
+        description: "Send email via Gmail"
+  
+  slack:
+    name: "slack"
+    description: "Slack operations via MCP"
+    tools:
+      - name: "collect_messages"
+        description: "Collect Slack messages (DMs, channels, mentions)"
+
+# MCP Server Paths (relative to project root)
+server_paths:
+  email:
+    real: "mcp-servers/email-server/server.py"
+    mock: "mcp-servers/email-server/mock_server.py"
+  slack:
+    real: "mcp-servers/slack-server/server.py"
+    mock: "mcp-servers/slack-server/mock_server.py"
+

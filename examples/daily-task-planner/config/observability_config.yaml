@@ -1,0 +1,60 @@
+# OpenTelemetry Observability Configuration
+# Daily Task Planner Agent
+
+# Enable/disable observability globally
+enabled: true
+
+# Service identification
+service_name: "daily-task-planner-agent"
+service_version: "1.0.0"
+
+# Exporter configuration
+exporters:
+  # Console exporter (prints to stdout)
+  console: false  # Disabled to reduce noise (you can set to true for debugging)
+  
+  # OTLP exporter (for Jaeger, Grafana, etc.)
+  otlp:
+    # Enable OTLP traces (works with Jaeger)
+    traces: true
+    # Disable OTLP metrics (Jaeger doesn't support metrics via OTLP)
+    # Use an OpenTelemetry Collector or Prometheus for metrics
+    metrics: false
+
+# OTLP endpoint (if enabled)
+# Default: local Jaeger or OTEL collector
+otlp_endpoint: "http://localhost:4317"
+
+# Trace sampling rate (0.0 to 1.0)
+# 1.0 = sample all traces
+# 0.1 = sample 10% of traces
+sampling_rate: 1.0
+
+# ============================================================================
+# Usage Instructions
+# ============================================================================
+# 
+# Console Mode:
+#   - Set exporters.console: true
+#   - Traces and metrics print to stdout
+#   - Good for development and debugging
+#   - No external services required
+#
+# OTLP Mode with Jaeger (traces only):
+#   1. Set exporters.otlp.traces: true
+#   2. Set exporters.otlp.metrics: false (Jaeger doesn't support metrics)
+#   3. Run Jaeger:
+#      docker run -d -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one
+#   4. View traces at http://localhost:16686
+#
+# OTLP Mode with OpenTelemetry Collector (traces + metrics):
+#   1. Set exporters.otlp.traces: true
+#   2. Set exporters.otlp.metrics: true
+#   3. Run OTEL Collector with Jaeger + Prometheus backends
+#
+# Disable Observability:
+#   - Set enabled: false
+#   - No performance impact
+#   - Business logic unaffected
+# ============================================================================
+

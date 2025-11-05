@@ -1,21 +1,23 @@
 """
-Communication Agent Module
-Handles sending summaries and todo lists via email and other channels
+Communication Agent Module (MCP-based)
+Handles sending summaries and todo lists via MCP tools
 """
 
 from typing import Dict
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import base64
 from datetime import datetime
+from framework import run_async_tool_call
+
 
 # ============================================================================
-# Email Sender Agent
+# Email Sender Agent (MCP-based)
 # ============================================================================
 
 def email_sender_agent(state: Dict) -> Dict:
-    """Sends prioritized todo list via email"""
-    print("📨 Email Sender: Preparing to send todo list...")
+    """
+    Sends prioritized todo list via email using MCP email server
+    Uses the 'send_email' tool provided by the email MCP server
+    """
+    print("📨 Email Sender (MCP): Preparing to send todo list...")
     
     prioritized_tasks = state['prioritized_tasks']
     
@@ -26,57 +28,51 @@ def email_sender_agent(state: Dict) -> Dict:
         return state
     
     try:
-        # Reuse Gmail service from state (already authenticated by email_collector_agent)
-        service = state.get('gmail_service')
-        
-        if not service:
-            error_msg = "Gmail service not available. Email collector may have failed."
-            state['errors'].append(error_msg)
-            state['email_sent'] = False
-            state['email_status'] = error_msg
-            print(f"✗ {error_msg}")
-            return state
-        
-        # Get user's email address
-        profile = service.users().getProfile(userId='me').execute()
-        user_email = profile['emailAddress']
-        
         # Format email content
         email_body = format_todo_email(prioritized_tasks, state['time_range_hours'])
         
-        # Create email message
-        message = MIMEMultipart('alternative')
-        message['To'] = user_email
-        message['From'] = user_email
-        message['Subject'] = f"🎯 Your Prioritized Todo List - {datetime.now().strftime('%b %d, %Y')}"
+        # For MCP, we need to determine the recipient
+        # In a real scenario, this would be configured or extracted from state
+        # For now, we'll use a placeholder that the MCP server can handle
+        recipient = state.get('user_email', 'me@example.com')
         
-        # Add both plain text and HTML versions
-        text_part = MIMEText(email_body['text'], 'plain')
-        html_part = MIMEText(email_body['html'], 'html')
+        # Call MCP tool to send email
+        result = run_async_tool_call(
+            server_name="email",
+            tool_name="send_email",
+            arguments={
+                "to": recipient,
+                "subject": f"🎯 Your Prioritized Todo List - {datetime.now().strftime('%b %d, %Y')}",
+                "body_text": email_body['text'],
+                "body_html": email_body.get('html', '')
+            }
+        )
         
-        message.attach(text_part)
-        message.attach(html_part)
-        
-        # Encode and send
-        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-        send_message = {'raw': raw_message}
-        
-        result = service.users().messages().send(userId='me', body=send_message).execute()
-        
-        state['email_sent'] = True
-        state['email_status'] = f"Successfully sent to {user_email}"
-        state['email_message_id'] = result['id']
-        
-        print(f"✓ Todo list sent to {user_email}")
-        
+        if result.get('success'):
+            state['email_sent'] = True
+            state['email_status'] = f"Successfully sent to {recipient}"
+            state['email_message_id'] = result.get('message_id', '')
+            
+            is_mock = result.get('mock', False)
+            mock_label = "[MOCK] " if is_mock else ""
+            
+            print(f"✓ {mock_label}Todo list sent to {recipient}")
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"✗ Email sending failed: {error_msg}")
+            state.setdefault('errors', []).append(f"Email sending: {error_msg}")
+            state['email_sent'] = False
+            state['email_status'] = error_msg
+    
     except Exception as e:
-        error_msg = f"Email sending error: {str(e)}"
-        state['errors'].append(error_msg)
+        error_msg = f"MCP tool call failed: {str(e)}"
+        print(f"✗ {error_msg}")
+        state.setdefault('errors', []).append(error_msg)
         state['email_sent'] = False
         state['email_status'] = error_msg
-        print(f"✗ {error_msg}")
     
     return state
+
 
 # ============================================================================
 # Email Formatting Helper
@@ -125,7 +121,7 @@ def format_todo_email(tasks, time_range_hours):
     
     text_lines.append("="*70)
     text_lines.append("")
-    text_lines.append("This email was automatically generated by your Multi-Agent Summarizer.")
+    text_lines.append("This email was automatically generated by your Multi-Agent Summarizer (MCP).")
     
     # HTML version
     html_lines = []
@@ -206,7 +202,7 @@ def format_todo_email(tasks, time_range_hours):
     
     html_lines.append("""
         <div class="footer">
-            <p>This email was automatically generated by your Multi-Agent Communication Summarizer.</p>
+            <p>This email was automatically generated by your Multi-Agent Communication Summarizer (MCP).</p>
             <p>Reply to this email will go to your own inbox.</p>
         </div>
     </body>
