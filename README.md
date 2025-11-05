@@ -6,7 +6,8 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 - **🔧 MCP Architecture**: Clean agent/tool separation via Model Context Protocol
 - **📊 OpenTelemetry**: Automatic tracing and metrics for all agents
-- **💾 Durable Executions**: PostgreSQL-backed checkpointing with auto-resumption  
+- **💾 Durable Executions**: PostgreSQL-backed checkpointing with auto-resumption
+- **🧠 Conversation Memory** ⭐ NEW: Built-in memory management with auto-pruning and decorators
 - **🎯 Observable State Graph**: Drop-in replacement for LangGraph with instrumentation
 - **🧪 Mock MCP Servers**: Test without real APIs
 - **🔌 Dynamic Loading**: Framework dynamically loads and executes your workflows
@@ -40,8 +41,9 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 ### For Framework Users
 
-- **[Framework Guide](docs/FRAMEWORK_GUIDE.md)** - How to use the framework
+- **[Framework Guide](docs/FRAMEWORK_GUIDE.md)** - How to use the framework (includes memory!)
 - **[Create Workflow](docs/CREATE_WORKFLOW.md)** - Step-by-step tutorial for building workflows
+- **[Memory Examples](examples/memory-examples/README.md)** - ⭐ NEW: Memory management patterns
 - **[MCP Architecture](docs/MCP_ARCHITECTURE.md)** - Understanding MCP integration
 - **[Framework Architecture](docs/ARCHITECTURE.md)** - Framework internals
 - **[Durability](docs/DURABILITY.md)** - Checkpointing & resumption details
@@ -50,8 +52,31 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 - **Examples**: See `examples/` directory for complete working workflows
 - **MCP Servers**: See `mcp-servers/` for tool server implementations
+- **Memory Feature**: ⭐ NEW `examples/conversational-assistant/` demonstrates framework memory
 
 ## 🚀 Quick Start
+
+### 🧠 New: Framework Memory Management
+
+The framework now provides **conversation memory as a built-in feature**:
+
+```python
+from framework import with_conversation_memory, MemoryManager
+
+@with_conversation_memory(
+    system_prompt="You are a helpful assistant",
+    max_messages=50,
+    auto_add_response=True  # Automatically adds responses!
+)
+def my_chat_agent(state):
+    MemoryManager.add_user_message(state, state['user_query'])
+    messages = MemoryManager.get_langchain_messages(state)
+    response = llm.invoke(messages)
+    state['assistant_response'] = response.content
+    return state  # Framework handles memory, pruning, checkpointing!
+```
+
+See `examples/conversational-assistant/` and `examples/memory-examples/` for complete examples.
 
 ### Prerequisites
 

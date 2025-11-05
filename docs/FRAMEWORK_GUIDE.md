@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a **production-ready framework** for building multi-agent workflows with built-in observability, durability, and MCP (Model Context Protocol) integration.
+This is a **production-ready framework** for building multi-agent workflows with built-in observability, durability, MCP (Model Context Protocol) integration, and **conversation memory management**.
 
 ## Framework Architecture
 
@@ -33,9 +33,13 @@ This is a **production-ready framework** for building multi-agent workflows with
 │  │ • Metrics    │  │ • Resume     │  │ • Discovery  │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 │                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  loader.py - Dynamic app loading & execution         │  │
-│  └──────────────────────────────────────────────────────┘  │
+│  ┌──────────────┐  ┌──────────────────────────────────┐   │
+│  │   Memory     │  │  loader.py                        │   │
+│  │              │  │  Dynamic app loading & execution  │   │
+│  │ • Auto-mgmt  │  └───────────────────────────────────┘   │
+│  │ • Pruning    │                                           │
+│  │ • Decorators │                                           │
+│  └──────────────┘                                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -129,6 +133,81 @@ result = run_async_tool_call(
 ```
 
 **Configuration**: `config/mcp_config.yaml`
+
+### 5. Memory Management (`framework/memory.py`)
+
+**Purpose**: Built-in conversation memory for interactive workflows
+
+**Features**:
+- Automatic conversation history management
+- Memory pruning (prevents context overflow)
+- LangChain message conversion
+- Decorators for zero-config memory
+
+**Key Components**:
+
+#### ConversationMemoryMixin
+
+Base class that provides memory to your state:
+
+```python
+from framework import ConversationMemoryMixin
+
+class MyState(ConversationMemoryMixin):
+    # conversation_history automatically available!
+    my_field: str
+```
+
+#### MemoryManager
+
+Utility class for memory operations:
+
+```python
+from framework import MemoryManager
+
+# Initialize
+MemoryManager.init_conversation(state, "You are a helpful assistant")
+
+# Add messages
+MemoryManager.add_user_message(state, "Hello!")
+MemoryManager.add_assistant_message(state, "Hi there!")
+
+# Get LangChain messages
+messages = MemoryManager.get_langchain_messages(state)
+
+# Auto-pruning (happens automatically)
+MemoryManager.prune_if_needed(state)
+```
+
+#### @with_conversation_memory Decorator
+
+**Advanced auto-memory decorator** - memory is completely automatic:
+
+```python
+from framework import with_conversation_memory, MemoryManager
+
+@with_conversation_memory(
+    system_prompt="You are a helpful assistant",
+    max_messages=50,
+    auto_add_response=True  # Automatically adds assistant_response!
+)
+def my_chat_agent(state):
+    # Memory initialization - automatic!
+    # Memory pruning - automatic!
+    # Response adding - automatic!
+    
+    MemoryManager.add_user_message(state, state['user_query'])
+    messages = MemoryManager.get_langchain_messages(state)
+    response = llm.invoke(messages)
+    state['assistant_response'] = response.content
+    return state  # Framework handles the rest!
+```
+
+**Benefits**:
+- Zero manual memory management
+- Automatic pruning prevents context overflow
+- Framework checkpoints memory (durable conversations!)
+- Standard interface across all workflows
 
 ## Application Requirements
 

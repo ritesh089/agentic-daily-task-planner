@@ -1,0 +1,14 @@
+# MCP Configuration for Conversational Assistant
+use_mocks: false
+
+servers:
+  email:
+    name: "email"
+    tools:
+      - name: "collect_emails"
+  
+  slack:
+    name: "slack"
+    tools:
+      - name: "collect_messages"
+

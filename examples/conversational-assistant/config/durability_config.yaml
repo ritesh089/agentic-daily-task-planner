@@ -1,0 +1,13 @@
+enabled: true
+
+database:
+  host: "localhost"
+  port: 5432
+  database: "langgraph"
+  user: "postgres"
+  password: "postgres"
+
+resume:
+  auto_resume: true
+  max_attempts: 3
+

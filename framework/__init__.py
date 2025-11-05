@@ -1,6 +1,7 @@
 """
 Framework Module
-Provides cross-cutting concerns like OpenTelemetry instrumentation, durable executions, and MCP integration
+Provides cross-cutting concerns like OpenTelemetry instrumentation, durable executions, 
+MCP integration, and conversation memory management
 """
 
 from framework.observability import (
@@ -28,6 +29,14 @@ from framework.mcp_client import (
     MCPServerConfig
 )
 
+from framework.memory import (
+    add_messages,
+    ConversationMemoryMixin,
+    MemoryManager,
+    with_conversation_memory,
+    requires_conversation_memory
+)
+
 __all__ = [
     # Observability
     'init_observability',
@@ -48,5 +57,11 @@ __all__ = [
     'MCPClient',
     'MCPManager',
     'MCPServerConfig',
+    # Memory Management
+    'add_messages',
+    'ConversationMemoryMixin',
+    'MemoryManager',
+    'with_conversation_memory',
+    'requires_conversation_memory',
 ]
 

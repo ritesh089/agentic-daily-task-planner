@@ -1,0 +1,9 @@
+service_name: "conversational-assistant"
+
+exporters:
+  console: true
+  otlp:
+    traces: true
+    metrics: false
+    endpoint: "http://localhost:4317"
+
