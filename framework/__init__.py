@@ -33,6 +33,9 @@ from framework.memory import (
     add_messages,
     ConversationMemoryMixin,
     MemoryManager,
+    MemoryProfile,
+    MemoryInspector,
+    MemoryConfig,
     with_conversation_memory,
     requires_conversation_memory
 )
@@ -61,6 +64,9 @@ __all__ = [
     'add_messages',
     'ConversationMemoryMixin',
     'MemoryManager',
+    'MemoryProfile',
+    'MemoryInspector',
+    'MemoryConfig',
     'with_conversation_memory',
     'requires_conversation_memory',
 ]

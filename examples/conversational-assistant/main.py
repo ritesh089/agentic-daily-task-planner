@@ -23,6 +23,8 @@ def main():
     )
     parser.add_argument('--mock', action='store_true',
                        help='Use mock MCP servers (no real API calls)')
+    parser.add_argument('--summarize', action='store_true',
+                       help='Enable conversation summarization (preserves old context)')
     
     args = parser.parse_args()
     
@@ -40,7 +42,10 @@ def main():
     print("=" * 70)
     
     # Get initial state
-    initial_state = get_initial_state()
+    initial_state = get_initial_state(use_summarization=args.summarize)
+    
+    if args.summarize:
+        print("🧠 Summarization: ENABLED (old messages preserved via LLM summary)\n")
     
     # Run workflow via framework
     # Framework provides:

@@ -1,43 +1,30 @@
 """
 Application Configuration
+Initial state for the conversational assistant workflow
 """
 
-from typing import Dict, Any
-
-
-def get_initial_state() -> Dict[str, Any]:
+def get_initial_state(use_summarization: bool = False):
     """
-    Return initial state for conversational assistant workflow
+    Return initial state for the workflow
+    
+    Args:
+        use_summarization: If True, use 'summarize_and_prune' strategy
     """
     return {
-        # Data storage
+        # Data collection
         'emails': [],
         'slack_messages': [],
         
-        # Conversation memory
-        'conversation_history': [],
+        # Memory configuration
+        'use_summarization': use_summarization,
         
-        # Current turn state
+        # Conversation state
         'user_query': '',
         'context_messages': [],
         'assistant_response': '',
-        
-        # Control
         'continue_chat': True,
         'turn_count': 0,
         
         # Error tracking
         'errors': []
     }
-
-
-def get_app_config() -> Dict[str, Any]:
-    """
-    App-specific configuration
-    """
-    return {
-        'name': 'conversational-assistant',
-        'version': '1.0.0',
-        'description': 'Interactive conversational assistant for emails and Slack messages'
-    }
-

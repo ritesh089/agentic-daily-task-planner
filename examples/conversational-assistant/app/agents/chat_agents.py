@@ -12,8 +12,10 @@ from framework import MemoryManager
 def init_conversation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Initialize conversation with system prompt
-    Uses framework's MemoryManager - much simpler!
+    Uses framework's memory configuration (YAML or code)
     """
+    import os
+    from framework import MemoryConfig, MemoryInspector
     
     num_emails = len(state.get('emails', []))
     num_slack = len(state.get('slack_messages', []))
@@ -35,18 +37,46 @@ When answering questions:
 
 The user will ask you questions, and relevant messages will be provided to you automatically."""
     
-    # Framework handles memory initialization!
-    MemoryManager.init_conversation(state, system_prompt, max_messages=50)
+    # Try to load from YAML config first
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        'config',
+        'memory_config.yaml'
+    )
+    
+    try:
+        if os.path.exists(config_path):
+            # Load from YAML - easy configuration!
+            MemoryConfig.init_from_yaml(state, system_prompt, config_path)
+        else:
+            # Fallback to code-based config
+            use_summarization = state.get('use_summarization', False)
+            prune_strategy = 'summarize_and_prune' if use_summarization else 'keep_recent'
+            MemoryManager.init_conversation(
+                state, 
+                system_prompt, 
+                max_messages=20,
+                prune_strategy=prune_strategy
+            )
+            print(f"⚠️  No memory_config.yaml found, using defaults")
+    except Exception as e:
+        print(f"⚠️  Error loading memory config: {e}")
+        # Fallback to defaults
+        MemoryManager.init_conversation(state, system_prompt)
     
     state['turn_count'] = 0
     
     print("=" * 70)
-    print(f"💬 Conversational Assistant Ready (Framework Memory)")
+    print(f"💬 Conversational Assistant Ready")
     print("=" * 70)
     print(f"📊 Loaded: {num_emails} emails, {num_slack} Slack messages")
-    print(f"🧠 Memory: Framework-managed (auto-pruning at 50 messages)")
+    
+    # Show memory status
+    print()
+    MemoryInspector.print_status(state)
+    
     print("\nAsk me anything about your recent communications!")
-    print("Type 'exit', 'quit', or press Ctrl+C to end.\n")
+    print("Type 'exit', 'quit', or 'status' to see memory status.\n")
     print("=" * 70)
     
     return state

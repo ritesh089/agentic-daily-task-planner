@@ -234,9 +234,28 @@ messages = MemoryManager.get_langchain_messages(state)
 # Returns: [SystemMessage(...), HumanMessage(...), AIMessage(...)]
 ```
 
-## Real-World Example
+## Real-World Examples
+
+### Conversational Assistant
 
 See `examples/conversational-assistant/` for a complete working example using framework memory.
+
+**Try with summarization**:
+```bash
+cd examples/conversational-assistant
+python main.py --mock --summarize
+```
+
+### Summarization Demo
+
+See `examples/summarization-demo/` for a focused demonstration of the summarization feature.
+
+**Run the demo**:
+```bash
+cd examples/summarization-demo
+python demo.py              # Basic demo
+python demo.py --interactive  # Interactive chat
+```
 
 **Before (manual)**:
 ```python

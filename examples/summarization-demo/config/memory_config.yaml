@@ -1,0 +1,11 @@
+# Memory Configuration for Summarization Demo
+# Uses a low limit to trigger summarization quickly for demo purposes
+
+memory:
+  custom:
+    max_messages: 10  # Low limit to demonstrate summarization
+    prune_strategy: "summarize_and_prune"
+
+# This will trigger summarization after just a few conversation turns
+# Perfect for demonstrating how the feature works
+

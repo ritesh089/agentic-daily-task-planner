@@ -209,6 +209,49 @@ def my_chat_agent(state):
 - Framework checkpoints memory (durable conversations!)
 - Standard interface across all workflows
 
+#### Summarization-Based Pruning (NEW! ⭐)
+
+The framework now supports **intelligent pruning with LLM summarization**:
+
+```python
+MemoryManager.init_conversation(
+    state,
+    "You are helpful",
+    max_messages=20,
+    prune_strategy='summarize_and_prune'  # Instead of discarding, summarize!
+)
+```
+
+**How it works**:
+1. When memory exceeds `max_messages`, old messages are extracted
+2. LLM summarizes them into a concise paragraph
+3. Summary replaces old messages in history
+4. LLM sees summary in future turns → **context preserved!**
+
+**Example**:
+```
+Before (25 messages):
+[System, User1, AI1, User2, AI2, ..., User12, AI12]
+
+After summarization (20 messages):
+[System, 
+ Summary("User discussed projects A, B, C. Assistant provided..."),
+ User8, AI8, ..., User12, AI12]
+
+Result: Context from User1-7 preserved in summary! ✓
+```
+
+**Try it**:
+```bash
+# Conversational assistant with summarization
+cd examples/conversational-assistant
+python main.py --mock --summarize
+
+# Or see the focused demo
+cd examples/summarization-demo
+python demo.py
+```
+
 ## Application Requirements
 
 Your application must provide:

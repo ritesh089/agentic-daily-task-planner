@@ -1,0 +1,36 @@
+# Framework Memory Configuration
+# Configure conversation memory for your agentic workflows
+
+# Option 1: Use a preset profile (recommended)
+# Available profiles:
+#   - quick_chat: Brief interactions (10 messages, keep_recent)
+#   - standard: Most conversations (30 messages, keep_recent)
+#   - long_session: Extended chats (50 messages, summarize_and_prune)
+#   - research: Research workflows (40 messages, summarize_and_prune)
+#   - support: Customer support (60 messages, summarize_and_prune)
+#   - code_review: Technical discussions (35 messages, summarize_and_prune)
+
+memory:
+  profile: "standard"  # Choose from the profiles above
+
+# Option 2: Custom configuration (uncomment to use)
+# memory:
+#   custom:
+#     max_messages: 40
+#     prune_strategy: "summarize_and_prune"  # or "keep_recent"
+#     # Optional: Advanced settings
+#     # summarization:
+#     #   model: "llama3.2"
+#     #   temperature: 0.3
+
+# Profile Comparison:
+#
+# | Profile      | Max Messages | Strategy           | Best For                    |
+# |--------------|--------------|--------------------|-----------------------------|
+# | quick_chat   | 10           | keep_recent        | Quick Q&A, commands         |
+# | standard     | 30           | keep_recent        | Normal conversations        |
+# | long_session | 50           | summarize_and_prune| Extended conversations      |
+# | research     | 40           | summarize_and_prune| Research, analysis          |
+# | support      | 60           | summarize_and_prune| Customer support, help desk |
+# | code_review  | 35           | summarize_and_prune| Code review, technical chat |
+

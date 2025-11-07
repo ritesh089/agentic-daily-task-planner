@@ -1,0 +1,25 @@
+# Memory Configuration for Conversational Assistant
+# This example uses the RESEARCH profile for context-heavy Q&A
+
+memory:
+  # Using RESEARCH profile: optimized for Q&A with context preservation
+  profile: "research"
+  
+  # Description: 40 messages max with summarize_and_prune strategy
+  # Perfect for asking many questions about emails and Slack messages
+  # Old conversations are summarized to preserve context
+
+# Alternative: Use LONG_SESSION for very extended conversations
+# memory:
+#   profile: "long_session"
+
+# Alternative: Use STANDARD for typical usage
+# memory:
+#   profile: "standard"
+
+# Custom configuration example (uncomment to use):
+# memory:
+#   custom:
+#     max_messages: 30
+#     prune_strategy: "summarize_and_prune"
+

@@ -52,7 +52,7 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 - **Examples**: See `examples/` directory for complete working workflows
 - **MCP Servers**: See `mcp-servers/` for tool server implementations
-- **Memory Feature**: ⭐ NEW `examples/conversational-assistant/` demonstrates framework memory
+- **Memory Feature**: ⭐ NEW Easy configuration - see `MEMORY_QUICK_START.md`
 
 ## 🚀 Quick Start
 
