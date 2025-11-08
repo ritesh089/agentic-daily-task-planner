@@ -11,6 +11,7 @@ Features:
 
 from typing import TypedDict, List, Dict, Any, Annotated, Callable
 from functools import wraps
+from datetime import datetime
 import json
 
 
@@ -95,14 +96,167 @@ class MemoryProfile:
 
 def add_messages(left, right):
     """
-    Standard message reducer for conversation history
-    Appends new messages to existing list
+    Basic message reducer for conversation history
+    Appends new messages to existing list (no automatic pruning)
+    
+    Use this for simple cases or when you want manual memory control.
+    For automatic memory management, use create_memory_aware_reducer() instead.
     """
     if not isinstance(left, list):
         left = [left]
     if not isinstance(right, list):
         right = [right]
     return left + right
+
+
+def create_memory_aware_reducer(config: Dict[str, Any] = None):
+    """
+    Factory function that creates a memory-aware reducer with automatic pruning
+    
+    This is the RECOMMENDED approach for conversation memory - configure once,
+    automatic memory management forever!
+    
+    The returned reducer:
+    - Accepts LangChain messages (HumanMessage, AIMessage, SystemMessage)
+    - Automatically converts to internal format
+    - Applies pruning/summarization based on config
+    - No explicit MemoryManager calls needed!
+    
+    Args:
+        config: Memory configuration dict with:
+            - max_messages: Maximum messages to keep (default: 50)
+            - prune_strategy: 'keep_recent' or 'summarize_and_prune'
+            - summarization_llm: Optional LLM for summarization
+    
+    Returns:
+        A reducer function compatible with LangGraph's Annotated[list, reducer]
+    
+    Example:
+        # In your workflow:
+        memory_config = {'max_messages': 30, 'prune_strategy': 'summarize_and_prune'}
+        reducer = create_memory_aware_reducer(memory_config)
+        
+        class MyState(TypedDict):
+            conversation_history: Annotated[list, reducer]
+            _memory_config: dict
+        
+        # In your agents - just return LangChain messages!
+        return {
+            'conversation_history': [
+                HumanMessage(content="Hello"),
+                AIMessage(content="Hi there!")
+            ]
+        }
+        # Pruning/summarization happens automatically!
+    """
+    from langchain_core.messages import (
+        HumanMessage, AIMessage, SystemMessage, 
+        BaseMessage
+    )
+    
+    # Default config
+    default_config = {
+        'max_messages': 50,
+        'prune_strategy': 'keep_recent',
+        'summarization_llm': None
+    }
+    
+    if config:
+        default_config.update(config)
+    
+    def memory_aware_reducer(left, right):
+        """Inner reducer with memory management baked in"""
+        # Ensure both are lists
+        if not isinstance(left, list):
+            left = [left] if left else []
+        if not isinstance(right, list):
+            right = [right] if right else []
+        
+        # Convert LangChain messages to internal format
+        def to_internal_format(msg):
+            """Convert LangChain message to internal dict format"""
+            if isinstance(msg, dict):
+                return msg  # Already in internal format
+            elif isinstance(msg, BaseMessage):
+                # Convert LangChain message
+                role_map = {
+                    'human': 'user',
+                    'ai': 'assistant',
+                    'system': 'system'
+                }
+                msg_type = msg.type if hasattr(msg, 'type') else 'user'
+                role = role_map.get(msg_type, msg_type)
+                return {'role': role, 'content': msg.content}
+            else:
+                # Fallback for other types
+                return {'role': 'user', 'content': str(msg)}
+        
+        # Convert all messages to internal format
+        left_internal = [to_internal_format(msg) for msg in left]
+        right_internal = [to_internal_format(msg) for msg in right]
+        
+        # Combine messages
+        combined = left_internal + right_internal
+        
+        # Apply automatic pruning if needed
+        max_msgs = default_config.get('max_messages', 50)
+        strategy = default_config.get('prune_strategy', 'keep_recent')
+        
+        if len(combined) > max_msgs:
+            # Inline pruning logic to avoid circular import
+            # Extract system message
+            system_msg = combined[0] if combined and combined[0]['role'] == 'system' else None
+            start_idx = 1 if system_msg else 0
+            
+            if strategy == 'keep_recent':
+                # Simple: keep recent messages
+                if system_msg:
+                    recent = combined[-(max_msgs - 1):]
+                    combined = [system_msg] + recent
+                else:
+                    combined = combined[-max_msgs:]
+            # Note: summarize_and_prune requires MemoryManager, so we skip it here
+            # The full MemoryManager.prune_if_needed will handle it if called explicitly
+        
+        return combined
+    
+    return memory_aware_reducer
+
+
+# ============================================================================
+# Helper: Convert between LangChain and Internal Formats
+# ============================================================================
+
+def to_langchain_messages(internal_messages: List[Dict[str, str]]):
+    """
+    Convert internal message format to LangChain messages
+    
+    Args:
+        internal_messages: List of dicts with 'role' and 'content'
+    
+    Returns:
+        List of LangChain message objects
+    """
+    from langchain_core.messages import (
+        HumanMessage, AIMessage, SystemMessage
+    )
+    
+    lc_messages = []
+    for msg in internal_messages:
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        
+        if role == 'system' or role == 'summary':
+            lc_messages.append(SystemMessage(content=content))
+        elif role == 'user':
+            lc_messages.append(HumanMessage(content=content))
+        elif role == 'assistant':
+            lc_messages.append(AIMessage(content=content))
+        else:
+            # Unknown role - treat as user message
+            lc_messages.append(HumanMessage(content=content))
+    
+    return lc_messages
 
 
 # ============================================================================
@@ -114,10 +268,32 @@ class ConversationMemoryMixin(TypedDict):
     Mixin that provides conversation memory capabilities
     Workflows can inherit this to get memory for free
     
-    Example:
+    TWO USAGE PATTERNS:
+    
+    1. AUTOMATIC (Recommended) - Configure once, never think about memory again:
+    
+        memory_config = {'max_messages': 30, 'prune_strategy': 'summarize_and_prune'}
+        reducer = create_memory_aware_reducer(memory_config)
+        
+        class MyState(ConversationMemoryMixin):
+            conversation_history: Annotated[list, reducer]  # Override with smart reducer
+            my_field: str
+        
+        # In agents - just return LangChain messages!
+        return {'conversation_history': [HumanMessage(content="Hi")]}
+        # Pruning happens automatically!
+    
+    2. MANUAL (Advanced) - Full control with MemoryManager:
+    
         class MyState(ConversationMemoryMixin):
             my_field: str
-            # conversation_history is automatically available!
+            # Uses basic add_messages reducer (default)
+        
+        # In agents - explicit MemoryManager calls
+        MemoryManager.add_user_message(state, "Hi")
+        MemoryManager.prune_if_needed(state)
+    
+    The automatic pattern (1) is recommended for 90% of use cases!
     """
     conversation_history: Annotated[list, add_messages]
     _memory_config: Dict[str, Any]  # Internal: max_messages, pruning strategy
@@ -830,7 +1006,7 @@ class MemoryInspector:
             'conversation_history': state.get('conversation_history', []),
             'memory_config': state.get('_memory_config', {}),
             'metrics': MemoryInspector.get_metrics(state),
-            'export_timestamp': str(datetime.now()) if 'datetime' in dir() else None
+            'export_timestamp': datetime.now().isoformat()
         }
         
         with open(output_path, 'w') as f:

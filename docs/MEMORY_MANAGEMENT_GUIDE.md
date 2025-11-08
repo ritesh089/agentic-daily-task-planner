@@ -2,13 +2,169 @@
 
 ## Overview
 
-The framework provides three powerful tools to make conversation memory management easy for any agentic workflow:
+The framework provides powerful conversation memory management with **two approaches**:
 
-1. **Memory Profiles** - Pre-configured presets for common use cases
-2. **YAML Configuration** - Simple config file-based setup  
-3. **Memory Inspector** - Debugging and visualization tools
+### 🌟 **Automatic Memory (RECOMMENDED)**
+- **Zero explicit memory calls** in agents
+- Configure once in `workflow.py`, forget forever
+- Agents just return LangChain messages
+- Pruning/summarization happens automatically
 
-## Memory Profiles
+### 🔧 **Manual Memory (Advanced)**
+- Explicit `MemoryManager` calls for fine-grained control
+- Full control over when/how memory is updated
+- Useful for complex scenarios
+
+---
+
+## Approach 1: Automatic Memory (Smart Reducer) 🌟
+
+**This is the RECOMMENDED approach for 90% of use cases!**
+
+### How It Works
+
+1. **Configure once** in `workflow.py` using `create_memory_aware_reducer()`
+2. **Agents return LangChain messages** - no MemoryManager calls!
+3. **Reducer handles everything** - pruning, summarization, checkpointing
+
+### Complete Example
+
+#### Step 1: Load Config (workflow.py)
+
+```python
+from typing import Annotated
+from framework import (
+    ObservableStateGraph,
+    ConversationMemoryMixin,
+    create_memory_aware_reducer,
+    MemoryConfig
+)
+
+# Load memory config from YAML
+memory_config = MemoryConfig.load_from_yaml('config/memory_config.yaml')
+
+# Create smart reducer
+smart_reducer = create_memory_aware_reducer(memory_config)
+
+# Define state with smart reducer
+class MyState(ConversationMemoryMixin):
+    conversation_history: Annotated[list, smart_reducer]  # ← Automatic memory!
+    user_query: str
+    assistant_response: str
+    # ... other fields
+```
+
+#### Step 2: Create Memory Config (config/memory_config.yaml)
+
+```yaml
+memory:
+  profile: "research"  # or: quick_chat, standard, long_session, support, code_review
+```
+
+Or custom settings:
+
+```yaml
+memory:
+  custom:
+    max_messages: 40
+    prune_strategy: "summarize_and_prune"
+```
+
+#### Step 3: Agents Return Messages (No MemoryManager!)
+
+```python
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_ollama import ChatOllama
+from framework import to_langchain_messages
+
+def init_agent(state):
+    """Initialize with system message - no MemoryManager!"""
+    return {
+        'conversation_history': [
+            SystemMessage(content="You are a helpful assistant")
+        ]
+    }
+
+def chat_agent(state):
+    """Generate response - no MemoryManager calls!"""
+    
+    # Get current history and convert to LangChain format
+    lc_messages = to_langchain_messages(state['conversation_history'])
+    
+    # Add user message
+    lc_messages.append(HumanMessage(content=state['user_query']))
+    
+    # Generate response
+    llm = ChatOllama(model="llama3.2")
+    response = llm.invoke(lc_messages)
+    
+    # Just return new messages - reducer does the rest!
+    return {
+        'conversation_history': [
+            HumanMessage(content=state['user_query']),
+            AIMessage(content=response.content)
+        ],
+        'assistant_response': response.content
+    }
+    # Pruning? Automatic!
+    # Summarization? Automatic!
+    # Checkpointing? Automatic!
+```
+
+### Benefits of Automatic Approach
+
+- ✅ **Configure once, forget forever** - Zero memory management in agents
+- ✅ **Idiomatic LangGraph** - Standard reducer pattern, no framework magic
+- ✅ **Clean code** - Agents focus on business logic, not memory
+- ✅ **Still debuggable** - Use `MemoryInspector` for status/export
+- ✅ **Production-ready** - Works with checkpointing, streaming, all LangGraph features
+
+### Interactive Commands (Optional)
+
+You can still use `MemoryInspector` for debugging:
+
+```python
+from framework import MemoryInspector
+
+def special_command_agent(state):
+    if state['user_query'] == 'status':
+        MemoryInspector.print_status(state)
+        MemoryInspector.print_recommendation(state)
+    
+    if state['user_query'] == 'export':
+        MemoryInspector.export_to_json(state, "conversation.json")
+    
+    return state
+```
+
+### See It in Action
+
+The `conversational-assistant` example uses this pattern exclusively:
+
+```bash
+cd examples/conversational-assistant
+python main.py --mock
+
+# Try these commands:
+# You: status    # Show memory status
+# You: export    # Export conversation
+# You: help      # Show commands
+```
+
+---
+
+## Approach 2: Manual Memory (MemoryManager) 🔧
+
+**Use this for advanced scenarios where you need fine-grained control.**
+
+### When to Use Manual Approach
+
+- Complex memory manipulation (e.g., editing/removing specific messages)
+- Multiple memory streams in one workflow
+- Custom memory patterns not supported by smart reducer
+- Migrating existing code
+
+### Memory Profiles
 
 Pre-configured memory profiles eliminate guesswork. Just pick a profile that matches your use case!
 

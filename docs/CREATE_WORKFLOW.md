@@ -1,14 +1,28 @@
-# Create Your First Agentic Workflow
+# Building Conversational AI Workflows
 
-This guide walks you through creating a complete multi-agent workflow from scratch using the framework.
+This guide shows you how to build **conversational AI workflows** using the framework - agents that interact with users through natural language, maintain context, and provide intelligent responses.
 
-## Example: News Summarizer
+## What You'll Learn
 
-We'll build a "News Summarizer" that:
-1. Collects news articles via MCP
-2. Summarizes each article
-3. Generates a daily digest
-4. Sends the digest via email
+- Creating conversational workflows with automatic memory management
+- Using the framework's CLI and command handlers
+- Integrating with MCP tools for data access
+- Managing conversation state and flow
+- Best practices for conversational AI
+
+---
+
+## Core Concepts
+
+### Conversational Workflow Pattern
+
+A conversational AI workflow typically has this structure:
+
+1. **Initialization** - Set up conversation memory and system prompt
+2. **Input Loop** - Get user queries interactively
+3. **Context Retrieval** - Find relevant information (optional)
+4. **Response Generation** - Use LLM to generate intelligent responses
+5. **Display & Continue** - Show response and check if conversation continues
 
 ---
 
@@ -16,227 +30,280 @@ We'll build a "News Summarizer" that:
 
 ```bash
 # From project root
-mkdir -p examples/news-summarizer/app/agents
-mkdir -p examples/news-summarizer/config
-cd examples/news-summarizer
+mkdir -p examples/my-conversational-agent/app/agents
+mkdir -p examples/my-conversational-agent/config
+cd examples/my-conversational-agent
 ```
 
 ---
 
-## Step 2: Define Your State
+## Step 2: Define Your Conversational State
 
 Create `app/workflow.py`:
 
 ```python
 """
-News Summarizer Workflow
+My Conversational Agent Workflow
 """
 
-from typing import TypedDict, List, Dict
-from datetime import datetime
+from typing import TypedDict, List, Dict, Annotated
+from framework import (
+    ObservableStateGraph,
+    ConversationMemoryMixin,
+    create_memory_aware_reducer,
+    MemoryConfig
+)
 
-class NewsSummarizerState(TypedDict):
-    """State for news summarizer workflow"""
+class MyConversationalState(ConversationMemoryMixin):
+    """
+    State for conversational workflow
     
-    # Configuration
-    num_articles: int
-    categories: List[str]  # e.g., ["tech", "business"]
+    Inherits ConversationMemoryMixin which provides:
+    - conversation_history: Managed automatically by framework
+    - _memory_config: Configuration for memory management
+    """
     
-    # Collected data
-    articles: List[Dict[str, str]]  # [{title, content, url, source}]
+    # Your domain-specific data (loaded once, persists across conversation)
+    # Examples: user_profile, documents, database_records, etc.
+    domain_data: List[Dict[str, Any]]  # Your data here
     
-    # Processed data
-    article_summaries: List[Dict[str, str]]  # [{title, summary, url}]
-    daily_digest: str
+    # Current conversation turn
+    user_query: str
+    assistant_response: str
     
-    # Communication
-    digest_sent: bool
-    digest_status: str
+    # Optional: Context/search results for current query
+    relevant_context: List[Dict[str, Any]]
+    
+    # Conversation control
+    continue_chat: bool
+    turn_count: int
     
     # Error tracking
     errors: List[str]
 ```
 
 **Key Points**:
-- Use `TypedDict` for type safety
-- Separate input, processing, and output fields
-- Always include `errors: List[str]`
+- ✅ Inherit from `ConversationMemoryMixin` for automatic memory
+- ✅ Add your domain-specific data fields
+- ✅ Keep conversation state (query, response, continue flag)
+- ✅ Always include `errors: List[str]`
+- ✅ Memory is handled automatically by the framework!
 
 ---
 
-## Step 3: Create Your Agents
+## Step 3: Create Your Conversational Agents
 
-### News Collector Agent
+Conversational workflows need 4 core agents. Create `app/agents/chat_agents.py`:
 
-Create `app/agents/news_agents.py`:
+### 1. Initialization Agent
 
 ```python
 """
-News Collection and Summarization Agents
+Conversational Chat Agents
 """
 
 from typing import Dict, Any
-from framework import run_async_tool_call
+from langchain_core.messages import SystemMessage
 
 
-def news_collector_agent(state: Dict[str, Any]) -> Dict[str, Any]:
+def init_conversation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Collects news articles via MCP news server
+    Initialize conversation with system prompt
+    
+    With automatic memory management:
+    - Just return a SystemMessage
+    - No MemoryManager calls needed!
     """
-    print("📰 News Collector: Fetching articles...")
+    
+    # Create your system prompt - customize for your domain!
+    system_prompt = """You are a helpful AI assistant.
+
+Your capabilities:
+- Answer questions clearly and helpfully
+- Maintain context across the conversation
+- Admit when you don't know something
+
+Be conversational, helpful, and concise."""
+    
+    # Show startup message
+    print("=" * 70)
+    print("💬 Conversational Assistant Ready")
+    print("=" * 70)
+    print("\nAsk me anything! Type 'help' for available commands.\n")
+    print("=" * 70)
+    
+    # AUTOMATIC MEMORY: Just return the SystemMessage!
+    # The smart reducer handles adding it to conversation_history
+    return {
+        'conversation_history': [SystemMessage(content=system_prompt)]
+    }
+```
+
+### 2. Input Handler Agent (with Framework Commands!)
+
+```python
+from framework import InteractiveCommandHandler
+
+def get_user_input_agent(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Get user query interactively
+    
+    Uses framework's InteractiveCommandHandler for built-in commands:
+    - status, export, help, exit are handled automatically!
+    """
     
     try:
+        query = input("\n👤 You: ").strip()
+        
+        # Let framework handle built-in commands automatically!
+        if InteractiveCommandHandler.handle(query, state):
+            return state  # Command handled
+        
+        # Regular query - process it
+        state['user_query'] = query
+        state['continue_chat'] = True
+        state['turn_count'] = state.get('turn_count', 0) + 1
+        
+    except (EOFError, KeyboardInterrupt):
+        print("\n\n👋 Conversation interrupted. Goodbye!")
+        state['continue_chat'] = False
+        state['user_query'] = ''
+    
+    return state
+```
+
+### 3. Response Generation Agent
+
+```python
+from langchain_ollama import ChatOllama  # or any LLM
+from langchain_core.messages import HumanMessage, AIMessage
+from framework import to_langchain_messages
+
+def generate_response_agent(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate response using LLM
+    
+    AUTOMATIC MEMORY PATTERN:
+    - Just work with LangChain messages directly
+    - Return HumanMessage and AIMessage
+    - Smart reducer handles pruning/summarization automatically!
+    """
+    
+    print("   🤖 Generating response...")
+    
+    query = state.get('user_query', '')
+    if not query:
+        return state
+    
+    try:
+        # Get current conversation history
+        current_history = state.get('conversation_history', [])
+        lc_messages = to_langchain_messages(current_history)
+        
+        # Add current user message
+        lc_messages.append(HumanMessage(content=query))
+        
+        # Generate response with LLM
+        llm = ChatOllama(model="llama3.2", temperature=0.7)
+        response = llm.invoke(lc_messages)
+        assistant_response = response.content
+        
+        # AUTOMATIC MEMORY: Just return the new messages!
+        # The smart reducer will:
+        # 1. Add them to conversation_history
+        # 2. Check if pruning is needed
+        # 3. Apply summarization if configured
+        # All automatically!
+        return {
+            'conversation_history': [
+                HumanMessage(content=query),
+                AIMessage(content=assistant_response)
+            ],
+            'assistant_response': assistant_response
+        }
+        
+    except Exception as e:
+        error_msg = f"LLM error: {str(e)}"
+        print(f"   ✗ {error_msg}")
+        state.setdefault('errors', []).append(error_msg)
+        return {
+            'assistant_response': "Sorry, I encountered an error. Please try again."
+        }
+```
+
+### 4. Display Agent
+
+```python
+def display_response_agent(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Display the assistant's response
+    """
+    response = state.get('assistant_response', '')
+    
+    if response:
+        print(f"\n🤖 Assistant: {response}")
+    
+    return state
+```
+
+**Key Benefits of This Pattern**:
+- ✅ **Zero MemoryManager calls** - Framework handles everything
+- ✅ **Built-in commands** - status, export, help, exit automatic
+- ✅ **Automatic pruning** - Memory managed by smart reducer
+- ✅ **Clean code** - Just pure LangChain message handling
+- ✅ **10 lines instead of 80** for input handling!
+
+---
+
+## Optional: Add Data Loading Agent
+
+If your conversational agent needs to access data (emails, documents, database, etc.), add a data loading agent:
+
+```python
+from framework import run_async_tool_call
+
+def load_data_agent(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Load your domain data once at startup
+    
+    Examples:
+    - Load user's emails via MCP
+    - Load documents from database
+    - Fetch user profile
+    - Initialize search index
+    """
+    print("📥 Loading data...")
+    
+    try:
+        # Example: Load via MCP
         result = run_async_tool_call(
-            server_name="news",
-            tool_name="fetch_articles",
-            arguments={
-                "categories": state.get('categories', ['tech']),
-                "limit": state.get('num_articles', 10)
-            }
+            server_name="your-mcp-server",
+            tool_name="fetch_data",
+            arguments={"limit": 100}
         )
         
         if result.get('success'):
-            articles = result.get('articles', [])
-            state['articles'] = articles
-            print(f"✓ Collected {len(articles)} articles")
+            data = result.get('data', [])
+            state['domain_data'] = data
+            print(f"✓ Loaded {len(data)} items")
         else:
-            error_msg = result.get('error', 'Unknown error')
-            print(f"✗ Collection failed: {error_msg}")
-            state.setdefault('errors', []).append(f"Collection: {error_msg}")
-            state['articles'] = []
+            print(f"✗ Failed to load data")
+            state['domain_data'] = []
     
     except Exception as e:
-        error_msg = f"Exception in collector: {str(e)}"
-        print(f"✗ {error_msg}")
-        state.setdefault('errors', []).append(error_msg)
-        state['articles'] = []
-    
-    return state
-
-
-def news_summarizer_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Summarizes each collected article
-    """
-    print("🤖 News Summarizer: Processing articles...")
-    
-    articles = state.get('articles', [])
-    
-    if not articles:
-        print("ℹ️  No articles to summarize")
-        state['article_summaries'] = []
-        return state
-    
-    summaries = []
-    for article in articles:
-        # In real implementation, use LLM to summarize
-        # For now, simple truncation
-        summary = {
-            'title': article.get('title', 'Untitled'),
-            'summary': article.get('content', '')[:200] + '...',
-            'url': article.get('url', ''),
-            'source': article.get('source', 'Unknown')
-        }
-        summaries.append(summary)
-    
-    state['article_summaries'] = summaries
-    print(f"✓ Summarized {len(summaries)} articles")
+        print(f"✗ Error: {e}")
+        state['domain_data'] = []
+        state.setdefault('errors', []).append(str(e))
     
     return state
 ```
 
-**Best Practices**:
+**Best Practices for All Agents**:
 - Use `run_async_tool_call()` for MCP tools
-- Always handle exceptions
+- Always handle exceptions gracefully
 - Add errors to `state['errors']`
-- Print status messages
+- Print status messages for user feedback
 - Provide fallback values
-
-### Digest Generator Agent
-
-Add to `app/agents/news_agents.py`:
-
-```python
-def digest_generator_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Generates formatted daily digest
-    """
-    print("📝 Digest Generator: Creating daily digest...")
-    
-    summaries = state.get('article_summaries', [])
-    
-    if not summaries:
-        state['daily_digest'] = "No articles found for today."
-        return state
-    
-    # Format digest
-    digest_lines = [
-        "=" * 70,
-        "📰 YOUR DAILY NEWS DIGEST",
-        "=" * 70,
-        f"\nDate: {datetime.now().strftime('%B %d, %Y')}",
-        f"Articles: {len(summaries)}\n",
-        "=" * 70
-    ]
-    
-    for i, summary in enumerate(summaries, 1):
-        digest_lines.append(f"\n{i}. {summary['title']}")
-        digest_lines.append(f"   Source: {summary['source']}")
-        digest_lines.append(f"   {summary['summary']}")
-        digest_lines.append(f"   Read more: {summary['url']}\n")
-    
-    digest_lines.append("=" * 70)
-    
-    state['daily_digest'] = '\n'.join(digest_lines)
-    print(f"✓ Digest created with {len(summaries)} articles")
-    
-    return state
-```
-
-### Email Sender Agent
-
-Create `app/agents/communication_agents.py`:
-
-```python
-"""
-Communication Agents
-"""
-
-from typing import Dict, Any
-from framework import run_async_tool_call
-
-
-def email_sender_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Sends digest via email using MCP
-    """
-    print("📨 Email Sender: Sending digest...")
-    
-    digest = state.get('daily_digest', '')
-    
-    if not digest:
-        print("ℹ️  No digest to send")
-        state['digest_sent'] = False
-        state['digest_status'] = "No digest available"
-        return state
-    
-    try:
-        result = run_async_tool_call(
-            server_name="email",
-            tool_name="send_email",
-            arguments={
-                "to": "you@example.com",
-                "subject": "📰 Your Daily News Digest",
-                "body_text": digest
-            }
-        )
-        
-        if result.get('success'):
-            state['digest_sent'] = True
-            state['digest_status'] = "Digest sent successfully"
-            print("✓ Digest sent")
-        else:
-            error_msg = result.get('error', 'Unknown error')
             state['digest_sent'] = False
             state['digest_status'] = f"Failed: {error_msg}"
             state.setdefault('errors', []).append(f"Email: {error_msg}")
@@ -488,9 +555,11 @@ if __name__ == "__main__":
 
 ---
 
-## Step 7: Create Entry Point
+## Step 7: Create Entry Point (NEW! ⚡ FrameworkCLI)
 
-### `main.py`
+### `main.py` - Simplified with FrameworkCLI
+
+The framework now provides `FrameworkCLI` which eliminates boilerplate!
 
 ```python
 #!/usr/bin/env python3
@@ -498,7 +567,6 @@ if __name__ == "__main__":
 News Summarizer - Main Entry Point
 """
 
-import argparse
 import os
 import sys
 
@@ -506,59 +574,78 @@ import sys
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
 
-from framework.loader import load_and_run_app
+from framework import FrameworkCLI
 from app.config import get_initial_state
 
 
-def main():
-    parser = argparse.ArgumentParser(description='News Summarizer with MCP')
-    parser.add_argument('--mock', action='store_true',
-                       help='Use mock MCP servers')
-    parser.add_argument('--categories', nargs='+',
-                       help='News categories (default: tech business)')
-    parser.add_argument('--limit', type=int,
-                       help='Max articles (default: 10)')
-    
-    args = parser.parse_args()
-    
-    print("\n📰 Starting News Summarizer...\n")
-    
-    # Get initial state
-    initial_state = get_initial_state()
-    
-    # Override with CLI args
-    if args.categories:
-        initial_state['categories'] = args.categories
-    if args.limit:
-        initial_state['num_articles'] = args.limit
-    
-    print(f"⚙️  Categories: {', '.join(initial_state['categories'])}")
-    print(f"⚙️  Max articles: {initial_state['num_articles']}\n")
-    
-    # Run workflow
-    result = load_and_run_app(
-        'app.workflow',
-        initial_state,
-        use_mcp_mocks=args.mock
+if __name__ == "__main__":
+    # Create CLI - framework handles all boilerplate!
+    cli = FrameworkCLI(
+        title="News Summarizer",
+        description="Collects news, summarizes articles, and sends daily digest",
+        app_module='app.workflow'
     )
     
-    # Display results
-    print("\n" + result['daily_digest'])
+    # Add custom arguments
+    cli.add_argument(
+        '--categories',
+        nargs='+',
+        help='News categories (default: tech business)'
+    )
+    cli.add_argument(
+        '--limit',
+        type=int,
+        help='Max articles (default: 10)'
+    )
     
-    if result['digest_sent']:
-        print(f"\n✅ {result['digest_status']}\n")
-    else:
-        print(f"\n⚠️  {result['digest_status']}\n")
+    # Custom initial state provider
+    def initial_state_provider(args):
+        state = get_initial_state()
+        if args.categories:
+            state['categories'] = args.categories
+        if args.limit:
+            state['num_articles'] = args.limit
+        return state
     
-    if result.get('errors'):
-        print("Errors:")
-        for error in result['errors']:
-            print(f"  • {error}")
+    cli.add_initial_state_provider(initial_state_provider)
+    
+    # Run! Framework handles:
+    # - Path setup
+    # - Banner display  
+    # - MCP initialization
+    # - Error handling
+    # - Session summary
+    sys.exit(cli.run())
+```
 
+**What FrameworkCLI Provides:**
+- ✅ Automatic `--mock` flag
+- ✅ Automatic `--debug` flag
+- ✅ Automatic `--resume` flag
+- ✅ Pretty banner and summary
+- ✅ Error handling
+- ✅ Path setup
+- ✅ Clean exit codes
+
+**90 lines → 50 lines** and much cleaner!
+
+### Alternative: Even Simpler (for basic cases)
+
+```python
+#!/usr/bin/env python3
+from framework import run_framework_app
+from app.config import get_initial_state
 
 if __name__ == "__main__":
-    main()
+    exit(run_framework_app(
+        title="News Summarizer",
+        description="Collects and summarizes news",
+        app_module='app.workflow',
+        initial_state_provider=lambda args: get_initial_state()
+    ))
 ```
+
+**Just 10 lines!** Perfect for simple workflows.
 
 ---
 
@@ -615,6 +702,79 @@ def test_initial_state_structure():
     assert 'articles' in state
     assert 'errors' in state
     assert isinstance(state['errors'], list)
+```
+
+---
+
+## For Conversational Workflows: InteractiveCommandHandler
+
+If your workflow is conversational (interactive user input), use `InteractiveCommandHandler` to eliminate command boilerplate!
+
+### Before (Manual Commands):
+
+```python
+def get_user_input_agent(state):
+    query = input("\n👤 You: ").strip()
+    
+    # 60+ lines of command handling...
+    if query.lower() == 'status':
+        print("Status...")
+        return state
+    if query.lower() == 'export':
+        print("Exporting...")
+        return state
+    if query.lower() in ['help', '?']:
+        print("Help...")
+        return state
+    if query.lower() in ['exit', 'quit']:
+        print("Goodbye...")
+        state['continue_chat'] = False
+        return state
+    
+    # Finally process query...
+    state['user_query'] = query
+    return state
+```
+
+### After (Automatic Commands):
+
+```python
+from framework import InteractiveCommandHandler
+
+def get_user_input_agent(state):
+    query = input("\n👤 You: ").strip()
+    
+    # Framework handles status, export, help, exit automatically!
+    if InteractiveCommandHandler.handle(query, state):
+        return state  # Command handled
+    
+    # Only handle regular queries
+    state['user_query'] = query
+    state['turn_count'] += 1
+    return state
+```
+
+**Built-in Commands:**
+- `status` - Show memory status
+- `export` - Export conversation to JSON
+- `help` / `?` - Show available commands
+- `exit` / `quit` - End conversation with export option
+
+**60+ lines → 10 lines!**
+
+### Add Custom Commands
+
+```python
+# Register custom command globally
+from framework import interactive_command
+
+@interactive_command('debug')
+def debug_handler(state):
+    '''Show debug information'''
+    print(f"State keys: {state.keys()}")
+    print(f"Turn count: {state.get('turn_count', 0)}")
+
+# Now 'debug' command is available in your conversational agent!
 ```
 
 ---

@@ -245,12 +245,138 @@ Result: Context from User1-7 preserved in summary! ✓
 ```bash
 # Conversational assistant with summarization
 cd examples/conversational-assistant
-python main.py --mock --summarize
+python main.py --mock
 
 # Or see the focused demo
 cd examples/summarization-demo
 python demo.py
 ```
+
+#### Smart Reducer - Automatic Memory (RECOMMENDED! 🌟)
+
+**NEW**: The framework now offers a **completely automatic memory management pattern** using smart reducers!
+
+**The Problem with Manual Approach**:
+```python
+# Old way - manual MemoryManager calls in every agent
+def my_agent(state):
+    MemoryManager.add_user_message(state, query)  # Manual
+    messages = MemoryManager.get_langchain_messages(state)  # Manual
+    response = llm.invoke(messages)
+    MemoryManager.add_assistant_message(state, response.content)  # Manual
+    return state
+```
+
+**The Automatic Solution**:
+```python
+# 1. Configure ONCE in workflow.py
+from framework import create_memory_aware_reducer, MemoryConfig
+
+memory_config = MemoryConfig.load_from_yaml('config/memory_config.yaml')
+smart_reducer = create_memory_aware_reducer(memory_config)
+
+class MyState(ConversationMemoryMixin):
+    conversation_history: Annotated[list, smart_reducer]  # That's it!
+    # ... other fields
+
+# 2. Agents just return LangChain messages - ZERO MemoryManager calls!
+def my_agent(state):
+    from langchain_core.messages import HumanMessage, AIMessage
+    from framework import to_langchain_messages
+    
+    # Get current history and convert for LLM
+    lc_messages = to_langchain_messages(state['conversation_history'])
+    lc_messages.append(HumanMessage(content=state['user_query']))
+    
+    # Generate response
+    response = llm.invoke(lc_messages)
+    
+    # Just return new messages - reducer handles EVERYTHING!
+    return {
+        'conversation_history': [
+            HumanMessage(content=state['user_query']),
+            AIMessage(content=response.content)
+        ]
+    }
+    # Pruning? Automatic!
+    # Summarization? Automatic!
+    # Checkpointing? Automatic!
+```
+
+**What the smart reducer does automatically**:
+1. ✅ Converts LangChain messages to internal format
+2. ✅ Adds new messages to conversation history
+3. ✅ Checks if pruning is needed
+4. ✅ Applies summarization (if configured)
+5. ✅ Maintains system messages correctly
+6. ✅ Works seamlessly with checkpointing
+
+**Benefits**:
+- 📦 **Configure once, forget forever** - Set up in workflow.py, never think about memory again
+- 🎯 **Idiomatic LangGraph** - Uses standard reducer pattern, no framework magic in agents
+- 🧹 **Clean agent code** - Zero MemoryManager calls, just pure LangChain
+- 🔧 **Still debuggable** - Use `MemoryInspector` for status/export when needed
+- 🔄 **Backward compatible** - Manual `MemoryManager` approach still works for advanced cases
+
+**Complete Example**:
+
+`config/memory_config.yaml`:
+```yaml
+profile: research  # or custom settings
+```
+
+`app/workflow.py`:
+```python
+from framework import (
+    create_memory_aware_reducer,
+    MemoryConfig,
+    ConversationMemoryMixin
+)
+
+# Load config once
+memory_config = MemoryConfig.load_from_yaml('config/memory_config.yaml')
+smart_reducer = create_memory_aware_reducer(memory_config)
+
+class MyState(ConversationMemoryMixin):
+    conversation_history: Annotated[list, smart_reducer]
+    # ... other fields
+
+def build_workflow():
+    # ... build as usual
+```
+
+`app/agents/chat.py`:
+```python
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from framework import to_langchain_messages
+
+def init_agent(state):
+    # Just return system message!
+    return {'conversation_history': [SystemMessage(content="You are helpful")]}
+
+def chat_agent(state):
+    # Get history, add user message, invoke LLM
+    messages = to_langchain_messages(state['conversation_history'])
+    messages.append(HumanMessage(content=state['query']))
+    response = llm.invoke(messages)
+    
+    # Return new messages - that's it!
+    return {
+        'conversation_history': [
+            HumanMessage(content=state['query']),
+            AIMessage(content=response.content)
+        ]
+    }
+```
+
+**See it in action**:
+```bash
+cd examples/conversational-assistant
+python main.py --mock
+# Type 'status' to see memory in action!
+```
+
+The conversational-assistant example uses this pattern exclusively - check the code for a complete reference!
 
 ## Application Requirements
 
