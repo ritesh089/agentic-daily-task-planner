@@ -43,9 +43,12 @@ class MCPClient:
         )
         
         try:
-            # Create stdio client
-            stdio_transport = await stdio_client(server_params)
-            read_stream, write_stream = stdio_transport
+            # Create stdio client - must use async with for context manager
+            stdio_context = stdio_client(server_params)
+            read_stream, write_stream = await stdio_context.__aenter__()
+            
+            # Store context for cleanup later
+            self.contexts[config.name] = stdio_context
             
             # Create session
             session = ClientSession(read_stream, write_stream)
@@ -74,7 +77,12 @@ class MCPClient:
         """Disconnect from an MCP server"""
         if server_name in self.sessions:
             try:
-                # TODO: Properly close session when MCP SDK supports it
+                # Properly close the async context manager
+                if server_name in self.contexts:
+                    context = self.contexts[server_name]
+                    await context.__aexit__(None, None, None)
+                    del self.contexts[server_name]
+                
                 del self.sessions[server_name]
                 del self.servers[server_name]
                 print(f"✓ Disconnected from {server_name}")

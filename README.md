@@ -7,7 +7,7 @@ A **production-ready framework** for building multi-agent workflows with built-i
 - **🔧 MCP Architecture**: Clean agent/tool separation via Model Context Protocol
 - **📊 OpenTelemetry**: Automatic tracing and metrics for all agents
 - **💾 Durable Executions**: PostgreSQL-backed checkpointing with auto-resumption
-- **🧠 Conversation Memory** ⭐ NEW: Built-in memory management with auto-pruning and decorators
+- **🧠 Conversation Memory** ⭐ Powered by [mem0](https://mem0.ai): Built-in memory management with semantic search
 - **🎯 Observable State Graph**: Drop-in replacement for LangGraph with instrumentation
 - **🧪 Mock MCP Servers**: Test without real APIs
 - **🔌 Dynamic Loading**: Framework dynamically loads and executes your workflows
@@ -56,9 +56,9 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 ## 🚀 Quick Start
 
-### 🧠 New: Framework Memory Management
+### 🧠 New: Framework Memory Management (Powered by mem0)
 
-The framework now provides **conversation memory as a built-in feature**:
+The framework provides **conversation memory as a built-in feature**, powered by [mem0](https://mem0.ai) for semantic search and smart memory management:
 
 ```python
 from framework import with_conversation_memory, MemoryManager
@@ -74,6 +74,16 @@ def my_chat_agent(state):
     response = llm.invoke(messages)
     state['assistant_response'] = response.content
     return state  # Framework handles memory, pruning, checkpointing!
+```
+
+**NEW: Semantic Memory Search**
+```python
+# Search past conversations semantically (powered by mem0)
+relevant_memories = MemoryManager.search_memories(
+    state, 
+    query="user preferences about email summaries",
+    limit=5
+)
 ```
 
 See `examples/conversational-assistant/` and `examples/memory-examples/` for complete examples.
