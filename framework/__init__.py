@@ -31,6 +31,8 @@ from framework.mcp_client import (
 
 from framework.memory import (
     add_messages,
+    create_memory_aware_reducer,
+    to_langchain_messages,
     ConversationMemoryMixin,
     MemoryManager,
     MemoryProfile,
@@ -38,6 +40,16 @@ from framework.memory import (
     MemoryConfig,
     with_conversation_memory,
     requires_conversation_memory
+)
+
+from framework.interactive import (
+    InteractiveCommandHandler,
+    interactive_command
+)
+
+from framework.cli import (
+    FrameworkCLI,
+    run_framework_app
 )
 
 __all__ = [
@@ -62,6 +74,8 @@ __all__ = [
     'MCPServerConfig',
     # Memory Management
     'add_messages',
+    'create_memory_aware_reducer',
+    'to_langchain_messages',
     'ConversationMemoryMixin',
     'MemoryManager',
     'MemoryProfile',
@@ -69,5 +83,11 @@ __all__ = [
     'MemoryConfig',
     'with_conversation_memory',
     'requires_conversation_memory',
+    # Interactive Commands
+    'InteractiveCommandHandler',
+    'interactive_command',
+    # CLI
+    'FrameworkCLI',
+    'run_framework_app',
 ]
 

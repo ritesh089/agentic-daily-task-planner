@@ -2,20 +2,25 @@
 Chat Agents
 Handle conversational interaction with user
 
-Uses framework's MemoryManager for automatic memory management!
+Uses framework's AUTOMATIC memory management - zero explicit memory calls!
+Agents just return LangChain messages, reducer handles the rest.
 """
 
 from typing import Dict, Any
-from framework import MemoryManager
+from langchain_core.messages import SystemMessage
 
 
 def init_conversation_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Initialize conversation with system prompt
-    Uses framework's memory configuration (YAML or code)
+    
+    With automatic memory management:
+    - Just return a SystemMessage
+    - No MemoryManager calls needed!
+    - Config was loaded in workflow.py, reducer handles everything
     """
     import os
-    from framework import MemoryConfig, MemoryInspector
+    from framework import MemoryInspector
     
     num_emails = len(state.get('emails', []))
     num_slack = len(state.get('slack_messages', []))
@@ -37,33 +42,7 @@ When answering questions:
 
 The user will ask you questions, and relevant messages will be provided to you automatically."""
     
-    # Try to load from YAML config first
-    config_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        'config',
-        'memory_config.yaml'
-    )
-    
-    try:
-        if os.path.exists(config_path):
-            # Load from YAML - easy configuration!
-            MemoryConfig.init_from_yaml(state, system_prompt, config_path)
-        else:
-            # Fallback to code-based config
-            use_summarization = state.get('use_summarization', False)
-            prune_strategy = 'summarize_and_prune' if use_summarization else 'keep_recent'
-            MemoryManager.init_conversation(
-                state, 
-                system_prompt, 
-                max_messages=20,
-                prune_strategy=prune_strategy
-            )
-            print(f"⚠️  No memory_config.yaml found, using defaults")
-    except Exception as e:
-        print(f"⚠️  Error loading memory config: {e}")
-        # Fallback to defaults
-        MemoryManager.init_conversation(state, system_prompt)
-    
+    # Initialize turn count
     state['turn_count'] = 0
     
     print("=" * 70)
@@ -71,44 +50,51 @@ The user will ask you questions, and relevant messages will be provided to you a
     print("=" * 70)
     print(f"📊 Loaded: {num_emails} emails, {num_slack} Slack messages")
     
-    # Show memory status
+    # Show memory status (read-only operation, this is fine!)
     print()
     MemoryInspector.print_status(state)
     
     print("\nAsk me anything about your recent communications!")
-    print("Type 'exit', 'quit', or 'status' to see memory status.\n")
+    print("Type 'help' or '?' for available commands.\n")
     print("=" * 70)
     
-    return state
+    # AUTOMATIC MEMORY: Just return the SystemMessage!
+    # The smart reducer handles adding it to conversation_history
+    return {
+        'conversation_history': [SystemMessage(content=system_prompt)]
+    }
 
 
 def get_user_input_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Get user query interactively
-    Handles input and conversation control
+    
+    Uses framework's InteractiveCommandHandler for built-in commands:
+    - status, export, help, exit are handled automatically
+    - Only need to handle regular queries here!
     """
+    from framework import InteractiveCommandHandler
     
     try:
         query = input("\n👤 You: ").strip()
         
-        # Check for exit commands
-        if query.lower() in ['exit', 'quit', 'bye', 'goodbye']:
-            print("\n👋 Ending conversation. Goodbye!")
-            state['continue_chat'] = False
-            state['user_query'] = ''
+        # Let framework handle built-in commands (status, export, help, exit)
+        # Returns True if command was handled, False for regular queries
+        if InteractiveCommandHandler.handle(query, state):
+            # Command handled - maintain conversation state
+            state.setdefault('user_query', '')
+            state.setdefault('continue_chat', True)
             return state
         
-        # Empty query
-        if not query:
-            print("   (Please enter a question)")
-            state['user_query'] = ''
-            state['continue_chat'] = True  # Keep going
-            return state
-        
-        # Valid query
+        # Regular query - process it
         state['user_query'] = query
         state['continue_chat'] = True
         state['turn_count'] = state.get('turn_count', 0) + 1
+        
+        # Show automatic memory update every 10 turns
+        if state['turn_count'] % 10 == 0:
+            print(f"\n   💾 Memory: {len(state.get('conversation_history', []))} messages "
+                  f"({state['turn_count']} turns)")
         
     except (EOFError, KeyboardInterrupt):
         print("\n\n👋 Conversation interrupted. Goodbye!")
@@ -191,9 +177,16 @@ def retrieve_context_agent(state: Dict[str, Any]) -> Dict[str, Any]:
 def generate_response_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate response using Ollama LLM
-    Uses framework's MemoryManager - much simpler!
+    
+    AUTOMATIC MEMORY PATTERN:
+    - Just work with LangChain messages directly
+    - Return HumanMessage and AIMessage
+    - Smart reducer handles pruning/summarization automatically!
+    - Zero explicit MemoryManager calls!
     """
     from langchain_ollama import ChatOllama
+    from langchain_core.messages import HumanMessage, AIMessage
+    from framework import to_langchain_messages
     
     print("   🤖 Generating response...")
     
@@ -224,35 +217,46 @@ def generate_response_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     else:
         context_str = "No directly relevant messages found in the last 24 hours."
     
-    # Framework handles adding user message!
+    # Prepare user message content
     user_message_content = f"User question: {query}\n\n{context_str}"
-    MemoryManager.add_user_message(state, user_message_content)
     
     # Generate response with LLM
     try:
         llm = ChatOllama(model="llama3.2", temperature=0.7)
         
-        # Framework converts to LangChain format!
-        lc_messages = MemoryManager.get_langchain_messages(state)
+        # Get current conversation history (already in internal format)
+        # Convert to LangChain format for LLM
+        current_history = state.get('conversation_history', [])
+        lc_messages = to_langchain_messages(current_history)
+        
+        # Add current user message for LLM invocation
+        lc_messages.append(HumanMessage(content=user_message_content))
         
         # Generate response
         response = llm.invoke(lc_messages)
         assistant_response = response.content
         
-        # Framework handles adding assistant response!
-        MemoryManager.add_assistant_message(state, assistant_response)
-        
-        state['assistant_response'] = assistant_response
-        
-        # Framework automatically prunes if needed!
+        # AUTOMATIC MEMORY: Just return the new messages!
+        # The smart reducer will:
+        # 1. Add them to conversation_history
+        # 2. Check if pruning is needed
+        # 3. Apply summarization if configured
+        # All automatically!
+        return {
+            'conversation_history': [
+                HumanMessage(content=user_message_content),
+                AIMessage(content=assistant_response)
+            ],
+            'assistant_response': assistant_response
+        }
         
     except Exception as e:
         error_msg = f"LLM error: {str(e)}"
         print(f"   ✗ {error_msg}")
         state.setdefault('errors', []).append(error_msg)
-        state['assistant_response'] = "Sorry, I encountered an error generating a response. Please try again."
-    
-    return state
+        return {
+            'assistant_response': "Sorry, I encountered an error generating a response. Please try again."
+        }
 
 
 def display_and_check_agent(state: Dict[str, Any]) -> Dict[str, Any]:

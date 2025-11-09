@@ -2,12 +2,17 @@
 Conversational Message Assistant Workflow
 Ask questions about your emails and Slack messages in natural language
 
-Uses framework's built-in memory management!
+Uses framework's AUTOMATIC memory management - configure once, forget forever!
 """
 
-from typing import TypedDict, List, Dict
+from typing import TypedDict, List, Dict, Annotated
 from langgraph.graph import START, END
-from framework import ObservableStateGraph, ConversationMemoryMixin
+from framework import (
+    ObservableStateGraph, 
+    ConversationMemoryMixin,
+    create_memory_aware_reducer,
+    MemoryConfig
+)
 
 from app.agents.collection_agents import collect_data_agent
 from app.agents.chat_agents import (
@@ -20,18 +25,15 @@ from app.agents.chat_agents import (
 
 
 # ============================================================================
-# State Definition (with Framework Memory)
+# State Definition (Base - Memory configured at runtime)
 # ============================================================================
 
-class ConversationalState(ConversationMemoryMixin):
+class ConversationalStateBase(ConversationMemoryMixin):
     """
-    State for conversational assistant workflow
+    Base state for conversational assistant workflow
     
-    Inherits ConversationMemoryMixin from framework, which provides:
-    - conversation_history: Annotated[list, add_messages]
-    - _memory_config: Dict[str, Any]
-    
-    Framework automatically manages memory!
+    Note: conversation_history reducer is configured at runtime in build_workflow()
+    to avoid import-time path issues and enable proper testing.
     """
     
     # Collected data (loaded once, stays in memory)
@@ -71,6 +73,49 @@ def build_workflow():
     Returns:
         Uncompiled workflow (framework adds checkpointer)
     """
+    
+    # Load memory configuration at BUILD TIME (not import time!)
+    # This fixes path issues and enables proper testing
+    import os
+    config_path = os.path.join(
+        os.path.dirname(__file__), 
+        '..', 
+        'config', 
+        'memory_config.yaml'
+    )
+    
+    try:
+        if os.path.exists(config_path):
+            memory_config_dict = MemoryConfig.load_from_yaml(config_path)
+        else:
+            # Fallback to defaults
+            memory_config_dict = {
+                'max_messages': 40,
+                'prune_strategy': 'summarize_and_prune'
+            }
+    except Exception as e:
+        print(f"⚠️  Error loading memory config: {e}, using defaults")
+        memory_config_dict = {
+            'max_messages': 40,
+            'prune_strategy': 'summarize_and_prune'
+        }
+    
+    # Create smart reducer with automatic pruning/summarization
+    smart_memory_reducer = create_memory_aware_reducer(memory_config_dict)
+    
+    # Dynamically create state class with configured reducer
+    # This is Python's way of creating a TypedDict subclass at runtime
+    class ConversationalState(ConversationalStateBase):
+        """
+        Runtime-configured conversational state with automatic memory management
+        
+        Memory is configured at workflow build time, then:
+        - Agents just return LangChain messages (HumanMessage, AIMessage)
+        - Pruning happens automatically when limit is reached
+        - Summarization preserves context (if enabled)
+        - Zero explicit MemoryManager calls needed!
+        """
+        conversation_history: Annotated[list, smart_memory_reducer]
     
     # Create observable workflow with automatic instrumentation
     workflow = ObservableStateGraph(ConversationalState)
