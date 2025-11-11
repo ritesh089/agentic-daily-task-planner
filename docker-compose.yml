@@ -60,6 +60,42 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # LangFuse: LLM Observability Platform
+  langfuse-server:
+    image: langfuse/langfuse:2
+    container_name: daily-task-planner-langfuse
+    ports:
+      # LangFuse UI
+      - "3000:3000"
+    environment:
+      # Database connection (uses same Postgres instance)
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/langfuse
+      
+      # NextAuth configuration (required)
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme-in-production-this-needs-to-be-a-random-string-at-least-32-chars}
+      
+      # Salt for API key hashing (required)
+      SALT: ${LANGFUSE_SALT:-changeme-in-production-this-needs-to-be-random-at-least-32-chars}
+      
+      # Telemetry (opt-out if desired)
+      TELEMETRY_ENABLED: ${LANGFUSE_TELEMETRY_ENABLED:-true}
+      
+      # Node environment
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/public/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   # pgAdmin: PostgreSQL Management UI (Optional)
   pgadmin:
     image: dpage/pgadmin4:latest

@@ -4,10 +4,13 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 ## ✨ Framework Features
 
+- **🔍 Dual Observability** ⭐ NEW: OTEL + LangFuse for complete visibility (zero code!)
+  - **OTEL**: Application-level tracing (agents, workflows, state transitions)
+  - **LangFuse**: LLM-specific tracing (prompts, responses, tokens, costs)
+  - **Fully Automatic**: Global instrumentation - NO manual callbacks!
+- **🧠 Conversation Memory** ⭐ Powered by [mem0](https://mem0.ai): Semantic search & smart management
 - **🔧 MCP Architecture**: Clean agent/tool separation via Model Context Protocol
-- **📊 OpenTelemetry**: Automatic tracing and metrics for all agents
 - **💾 Durable Executions**: PostgreSQL-backed checkpointing with auto-resumption
-- **🧠 Conversation Memory** ⭐ Powered by [mem0](https://mem0.ai): Built-in memory management with semantic search
 - **🎯 Observable State Graph**: Drop-in replacement for LangGraph with instrumentation
 - **🧪 Mock MCP Servers**: Test without real APIs
 - **🔌 Dynamic Loading**: Framework dynamically loads and executes your workflows
@@ -43,7 +46,8 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 - **[Framework Guide](docs/FRAMEWORK_GUIDE.md)** - How to use the framework (includes memory!)
 - **[Create Workflow](docs/CREATE_WORKFLOW.md)** - Step-by-step tutorial for building workflows
-- **[Memory Examples](examples/memory-examples/README.md)** - ⭐ NEW: Memory management patterns
+- **[Observability Guide](docs/OBSERVABILITY_GUIDE.md)** - ⭐ NEW: Zero-code OTEL + LangFuse tracing
+- **[Memory Examples](examples/memory-examples/README.md)** - Memory management patterns
 - **[MCP Architecture](docs/MCP_ARCHITECTURE.md)** - Understanding MCP integration
 - **[Framework Architecture](docs/ARCHITECTURE.md)** - Framework internals
 - **[Durability](docs/DURABILITY.md)** - Checkpointing & resumption details
@@ -52,7 +56,8 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 - **Examples**: See `examples/` directory for complete working workflows
 - **MCP Servers**: See `mcp-servers/` for tool server implementations
-- **Memory Feature**: ⭐ NEW Easy configuration - see `MEMORY_QUICK_START.md`
+- **Memory Feature**: Easy configuration - see `MEMORY_QUICK_START.md`
+- **Observability**: ⭐ NEW Zero-code tracing - see `docs/OBSERVABILITY_GUIDE.md`
 
 ## 🚀 Quick Start
 
@@ -108,8 +113,48 @@ source venv/bin/activate
 # Install framework dependencies
 pip install -r requirements.txt
 
-# Start infrastructure (PostgreSQL, Jaeger)
+# Setup LangFuse environment (optional - for LLM observability)
+# Generate secrets
+openssl rand -base64 32  # Copy this for NEXTAUTH_SECRET
+openssl rand -base64 32  # Copy this for SALT
+
+# Create .env file
+cp env.example .env
+# Edit .env and paste the generated secrets
+
+# Start infrastructure (PostgreSQL, Jaeger, LangFuse)
 docker-compose up -d
+
+# Wait for services to be healthy (takes ~30 seconds)
+docker-compose ps
+
+# Setup LangFuse API Keys (first time only):
+# 1. Open http://localhost:3000
+# 2. Create an account (any email/password works locally)
+# 3. Go to Settings → API Keys → Create new key
+# 4. Copy Public Key (pk-lf-...) and Secret Key (sk-lf-...)
+# 5. Update .env file with your keys:
+#    LANGFUSE_PUBLIC_KEY=pk-lf-...
+#    LANGFUSE_SECRET_KEY=sk-lf-...
+# 6. Export environment variables:
+export $(cat .env | xargs)
+```
+
+### Verify Setup
+
+```bash
+# Check all services are running
+docker-compose ps
+
+# You should see (all healthy):
+# ✅ daily-task-planner-postgres   - Database
+# ✅ daily-task-planner-jaeger     - OTEL traces
+# ✅ daily-task-planner-langfuse   - LLM observability
+
+# Access UIs:
+# - Jaeger (OTEL):   http://localhost:16686
+# - LangFuse (LLM):  http://localhost:3000
+# - pgAdmin (optional): http://localhost:5050
 ```
 
 ### Run an Example

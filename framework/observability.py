@@ -60,7 +60,13 @@ def load_config() -> Dict[str, Any]:
 # ============================================================================
 
 def init_observability():
-    """Initialize OpenTelemetry providers and exporters"""
+    """
+    Initialize complete observability stack:
+    - OTEL for application-level tracing & metrics (agents, workflows)
+    - LangFuse for LLM-specific observability (prompts, responses, costs)
+    
+    Both are fully abstracted - workflows need ZERO code changes!
+    """
     global _config, _tracer, _meter, _initialized
     
     if _initialized:
@@ -75,7 +81,7 @@ def init_observability():
     
     # Create resource
     resource = Resource.create({
-        "service.name": _config.get('service_name', 'daily-task-planner-agent'),
+        "service.name": _config.get('service_name', 'agentic-framework'),
         "service.version": _config.get('service_version', '1.0.0'),
     })
     
@@ -139,8 +145,12 @@ def init_observability():
     if otlp_metrics_enabled:
         active_exporters.append('otlp-metrics')
     
-    print(f"📊 Observability: Initialized for {_config.get('service_name')}")
+    print(f"📊 OTEL: Initialized for {_config.get('service_name')}")
     print(f"   Exporters: {', '.join(active_exporters) if active_exporters else 'none'}")
+    print(f"   Captures: Agent spans, metrics, state transitions")
+    
+    # Initialize LangFuse (LLM-specific observability)
+    init_langfuse()
     
     _initialized = True
 
@@ -359,6 +369,96 @@ def log_state_transition(from_agent: str, to_agent: str, state_summary: Dict[str
         attributes.update(state_summary)
     
     log_event("state_transition", attributes)
+
+# ============================================================================
+# LangFuse Integration (LLM-Specific Observability - Fully Abstracted)
+# ============================================================================
+
+# LangFuse imports
+try:
+    from langfuse.callback import CallbackHandler
+    LANGFUSE_AVAILABLE = True
+except ImportError:
+    LANGFUSE_AVAILABLE = False
+    CallbackHandler = None
+
+# Global LangFuse instance
+_langfuse_handler = None
+
+def init_langfuse():
+    """
+    Initialize LangFuse with GLOBAL callback registration
+    
+    This makes LangFuse completely transparent to workflows:
+    - All LLM calls are automatically traced
+    - No manual callback handling needed
+    - Zero code changes in agents!
+    
+    Just like ObservableStateGraph auto-instruments agents,
+    this auto-instruments all LLMs via global callbacks.
+    """
+    global _langfuse_handler
+    
+    if not LANGFUSE_AVAILABLE:
+        print("⚠️  LangFuse not installed. LLM observability disabled.")
+        print("   Install with: pip install langfuse")
+        return
+    
+    if not _config:
+        return
+    
+    langfuse_config = _config.get('langfuse', {})
+    
+    if not langfuse_config.get('enabled', True):
+        print("📊 LangFuse: Disabled by configuration")
+        return
+    
+    try:
+        # Create LangFuse callback handler
+        _langfuse_handler = CallbackHandler(
+            public_key=os.getenv('LANGFUSE_PUBLIC_KEY') or langfuse_config.get('public_key'),
+            secret_key=os.getenv('LANGFUSE_SECRET_KEY') or langfuse_config.get('secret_key'),
+            host=os.getenv('LANGFUSE_HOST') or langfuse_config.get('host', 'http://localhost:3000')
+        )
+        
+        # Register GLOBALLY with LangChain
+        # This is the magic that makes it automatic!
+        from langchain_core.globals import set_llm_cache
+        try:
+            # Try the new API (LangChain >= 0.1.0)
+            from langchain_core.callbacks.manager import configure
+            configure(callbacks=[_langfuse_handler])
+        except ImportError:
+            # Fallback to older API
+            from langchain.callbacks import get_callback_manager
+            manager = get_callback_manager()
+            manager.set_handlers([_langfuse_handler])
+        
+        print(f"📊 LangFuse: Initialized (GLOBAL auto-instrumentation)")
+        print(f"   Host: {langfuse_config.get('host', 'http://localhost:3000')}")
+        print(f"   ALL LLM calls automatically traced - zero code changes needed!")
+        
+        # Link to OTEL if enabled
+        if langfuse_config.get('link_to_otel', True) and _tracer:
+            print(f"   Linked to OTEL traces (correlated via trace ID)")
+        
+    except Exception as e:
+        print(f"⚠️  LangFuse initialization failed: {e}")
+        print(f"   LLM observability will not be available")
+        _langfuse_handler = None
+
+
+def get_langfuse_handler():
+    """
+    Get LangFuse callback handler (mainly for advanced usage)
+    
+    Note: You shouldn't need this in most cases!
+    LangFuse is automatically applied to all LLM calls via global registration.
+    
+    Only use this if you need to explicitly pass callbacks for some reason.
+    """
+    return _langfuse_handler
+
 
 # ============================================================================
 # Auto-Instrumenting StateGraph
