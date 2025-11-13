@@ -70,6 +70,11 @@ from framework.cli import (
     run_framework_app
 )
 
+from framework.workflow_runner import (
+    WorkflowRunner,
+    run_workflow_with_durability
+)
+
 __all__ = [
     # Observability
     'init_observability',
@@ -121,5 +126,8 @@ __all__ = [
     # CLI
     'FrameworkCLI',
     'run_framework_app',
+    # Workflow Runner
+    'WorkflowRunner',
+    'run_workflow_with_durability',
 ]
 

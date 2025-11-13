@@ -2,7 +2,10 @@
 Conversational Message Assistant Workflow
 Ask questions about your emails and Slack messages in natural language
 
-Uses framework's AUTOMATIC memory management - configure once, forget forever!
+Features:
+- AUTOMATIC memory management (configure once, forget forever!)
+- DURABLE execution (can fail and resume from checkpoint)
+- Observable with OpenTelemetry + LangFuse
 """
 
 from typing import TypedDict, List, Dict, Annotated
@@ -71,7 +74,7 @@ def build_workflow():
        - Display and check if continue
     
     Returns:
-        Uncompiled workflow (framework adds checkpointer)
+        Uncompiled workflow graph (framework handles compilation + checkpointing)
     """
     
     # Load memory configuration at BUILD TIME (not import time!)
@@ -150,6 +153,6 @@ def build_workflow():
         }
     )
     
-    # Return uncompiled (framework adds checkpointer)
+    # Return uncompiled graph - framework handles compilation + checkpointing!
     return workflow
 
