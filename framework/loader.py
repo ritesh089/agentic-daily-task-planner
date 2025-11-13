@@ -7,7 +7,7 @@ import importlib
 import asyncio
 from typing import Dict, Any, Optional
 from framework.observability import init_observability, create_workflow_span
-from framework.durability import init_durability
+from framework.durability import CheckpointerManager
 from framework.mcp_client import init_mcp_client, shutdown_mcp_client
 
 
@@ -45,16 +45,21 @@ def load_and_run_app(
         print(f"✗ Failed to initialize MCP client: {e}")
         raise RuntimeError(f"MCP initialization failed: {e}")
     
-    # Initialize durability (PostgreSQL checkpointing)
-    durability_manager = init_durability()
-    checkpointer = durability_manager.checkpointer if durability_manager else None
+    # Initialize durability (PostgreSQL checkpointing) - optional
+    # Applications can provide their own checkpointer via environment variable
+    checkpointer = None
+    checkpointer_manager = None
+    postgres_conn = None
     
-    # Check for interrupted workflows to resume
-    interrupted_workflows = []
-    if durability_manager and durability_manager.config.get('resume', {}).get('auto_resume', False):
-        interrupted_workflows = durability_manager.find_interrupted_workflows()
-        if interrupted_workflows:
-            print(f"🔄 Framework: Found {len(interrupted_workflows)} interrupted workflow(s)")
+    try:
+        import os
+        postgres_conn = os.getenv("POSTGRES_CONNECTION")
+        if postgres_conn:
+            checkpointer_manager = CheckpointerManager.get_or_create(postgres_conn)
+            checkpointer = checkpointer_manager.get_checkpointer()
+            print(f"✓ Checkpointing enabled with PostgreSQL")
+    except Exception as e:
+        print(f"⚠️  Checkpointing disabled: {e}")
     
     # Dynamically import the application module
     try:
@@ -93,16 +98,11 @@ def load_and_run_app(
         # Assume it's already compiled
         workflow = workflow_result
     
-    # Resume interrupted workflows if any
-    if interrupted_workflows:
-        print(f"\n🔄 Resuming {len(interrupted_workflows)} interrupted workflow(s)...")
-        for interrupted in interrupted_workflows[:5]:  # Limit to 5 for safety
-            thread_id = interrupted['thread_id']
-            config = {"configurable": {"thread_id": thread_id}}
-            durability_manager.resume_workflow(workflow, thread_id, config)
-    
-    # Generate unique thread ID for new execution
-    thread_id = durability_manager.generate_thread_id() if durability_manager else None
+    # Generate unique thread ID for new execution if checkpointing is enabled
+    thread_id = None
+    if checkpointer:
+        import uuid
+        thread_id = f"workflow_{uuid.uuid4().hex[:8]}"
     
     if thread_id:
         print(f"🚀 Framework: Executing workflow (thread_id: {thread_id})...\n")

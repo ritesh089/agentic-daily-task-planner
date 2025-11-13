@@ -15,8 +15,26 @@ from framework.observability import (
 )
 
 from framework.durability import (
-    init_durability,
-    get_durability_manager
+    CheckpointerManager,
+    create_checkpointer,
+    WorkflowCheckpoint,
+    get_checkpoint_status,
+    find_failed_workflows,
+    resume_workflow,
+    needs_resume
+)
+
+from framework.lock_manager import (
+    PostgresLockManager,
+    create_lock_manager_with_retry
+)
+
+from framework.workflow_executor import (
+    WorkflowExecutor,
+    with_workflow_lock,
+    LockableWorkflowMixin,
+    WorkflowExecutionError,
+    WorkflowAlreadyRunningError
 )
 
 from framework.mcp_client import (
@@ -61,9 +79,23 @@ __all__ = [
     'get_metrics',
     'log_event',
     'log_state_transition',
-    # Durability
-    'init_durability',
-    'get_durability_manager',
+    # Durability & Checkpointing
+    'CheckpointerManager',
+    'create_checkpointer',
+    'WorkflowCheckpoint',
+    'get_checkpoint_status',
+    'find_failed_workflows',
+    'resume_workflow',
+    'needs_resume',
+    # Lock Management
+    'PostgresLockManager',
+    'create_lock_manager_with_retry',
+    # Workflow Execution
+    'WorkflowExecutor',
+    'with_workflow_lock',
+    'LockableWorkflowMixin',
+    'WorkflowExecutionError',
+    'WorkflowAlreadyRunningError',
     # MCP Integration
     'init_mcp_client',
     'shutdown_mcp_client',
