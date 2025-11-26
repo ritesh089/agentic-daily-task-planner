@@ -4,6 +4,58 @@ Provides cross-cutting concerns like OpenTelemetry instrumentation, durable exec
 MCP integration, and conversation memory management
 """
 
+# Configuration
+from framework.config import (
+    FrameworkConfig,
+    ObservabilityConfig,
+    DurabilityConfig,
+    MemoryConfig,
+    MCPConfig,
+    DevelopmentConfig,
+    get_config,
+    set_config,
+    reset_config
+)
+
+# Errors
+from framework.errors import (
+    FrameworkError,
+    ConfigurationError,
+    CheckpointError,
+    LockError,
+    WorkflowExecutionError as WorkflowExecutionErrorNew,
+    MemoryError,
+    MCPError,
+    ObservabilityError,
+    LifecycleError,
+    is_recoverable,
+    get_retry_delay,
+    error_context
+)
+
+# Resilience
+from framework.resilience import (
+    RetryConfig,
+    with_retry,
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerManager,
+    resilient
+)
+
+# Lifecycle
+from framework.lifecycle import (
+    FrameworkContext,
+    SyncFrameworkContext
+)
+
+# Health
+from framework.health import (
+    FrameworkHealth,
+    HealthCheckResult,
+    print_health_report
+)
+
 from framework.observability import (
     init_observability,
     ObservableStateGraph,
@@ -76,6 +128,43 @@ from framework.workflow_runner import (
 )
 
 __all__ = [
+    # Configuration
+    'FrameworkConfig',
+    'ObservabilityConfig',
+    'DurabilityConfig',
+    'MemoryConfig',
+    'MCPConfig',
+    'DevelopmentConfig',
+    'get_config',
+    'set_config',
+    'reset_config',
+    # Errors
+    'FrameworkError',
+    'ConfigurationError',
+    'CheckpointError',
+    'LockError',
+    'WorkflowExecutionErrorNew',
+    'MemoryError',
+    'MCPError',
+    'ObservabilityError',
+    'LifecycleError',
+    'is_recoverable',
+    'get_retry_delay',
+    'error_context',
+    # Resilience
+    'RetryConfig',
+    'with_retry',
+    'CircuitBreaker',
+    'CircuitBreakerConfig',
+    'CircuitBreakerManager',
+    'resilient',
+    # Lifecycle
+    'FrameworkContext',
+    'SyncFrameworkContext',
+    # Health
+    'FrameworkHealth',
+    'HealthCheckResult',
+    'print_health_report',
     # Observability
     'init_observability',
     'ObservableStateGraph',

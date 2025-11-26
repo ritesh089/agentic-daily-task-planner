@@ -1,0 +1,88 @@
+# Framework Configuration
+# This file provides unified configuration for all framework features
+
+observability:
+  # OpenTelemetry Configuration
+  otel_enabled: true
+  otel_service_name: agentic-workflow
+  otel_endpoint: http://localhost:4317
+  
+  # LangFuse Configuration
+  langfuse_enabled: true
+  langfuse_host: http://localhost:3000
+  # Note: Public/secret keys should be set via environment variables:
+  # LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY
+  
+  # Tracing Options
+  trace_llm_calls: true
+  trace_agent_calls: true
+  trace_state_transitions: true
+  
+  # Metrics
+  collect_metrics: true
+
+durability:
+  # Enable/disable checkpointing
+  enabled: true
+  
+  # PostgreSQL connection (can also use POSTGRES_CONNECTION env var)
+  # postgres_conn: "postgresql://postgres:postgres@localhost:5432/langgraph"
+  
+  # Checkpoint Settings
+  checkpoint_every_step: true
+  auto_resume: true
+  compress_checkpoints: false
+  checkpoint_retention_days: 30
+  
+  # Lock Management
+  use_advisory_locks: true
+  lock_timeout_seconds: 300
+
+memory:
+  # Enable conversation memory
+  enabled: true
+  
+  # Backend: mem0, redis, or postgres
+  backend: mem0
+  
+  # mem0 Configuration
+  mem0_vector_store: chroma  # or qdrant, pinecone
+  mem0_embedding_model: all-MiniLM-L6-v2
+  
+  # Redis Configuration (if backend: redis)
+  # redis_url: redis://localhost:6379/0
+  
+  # PostgreSQL Configuration (if backend: postgres)
+  # postgres_conn: "postgresql://..."
+  
+  # Memory Management
+  max_messages: 50
+  summarization_threshold: 40
+  enable_semantic_search: true
+
+mcp:
+  # Model Context Protocol Integration
+  enabled: true
+  use_mock_servers: false
+  config_file: config/mcp_config.json
+  
+  # Server Management
+  auto_start_servers: true
+  server_startup_timeout: 30
+  server_health_check_interval: 60
+
+development:
+  # Development mode features
+  dev_mode: false
+  hot_reload: false
+  verbose_logging: false
+  
+  # Debugging Tools
+  enable_state_inspector: false
+  enable_checkpoint_browser: false
+  inspector_port: 8000
+
+# Global Settings
+log_level: INFO
+# workspace_path: /path/to/workspace  # Optional
+

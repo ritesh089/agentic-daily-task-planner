@@ -4,6 +4,7 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 ## ✨ Framework Features
 
+### Core Features
 - **🔍 Dual Observability** ⭐ NEW: OTEL + LangFuse for complete visibility (zero code!)
   - **OTEL**: Application-level tracing (agents, workflows, state transitions)
   - **LangFuse**: LLM-specific tracing (prompts, responses, tokens, costs)
@@ -15,6 +16,16 @@ A **production-ready framework** for building multi-agent workflows with built-i
 - **🧪 Mock MCP Servers**: Test without real APIs
 - **🔌 Dynamic Loading**: Framework dynamically loads and executes your workflows
 - **📦 Modular Design**: Reusable framework, multiple example workflows
+
+### 🎉 NEW: Enhanced Framework (v2.0)
+- **⚙️ Unified Configuration**: Single `FrameworkConfig` class with auto-detection
+- **🛡️ Rich Error Handling**: Comprehensive error hierarchy with recovery hints
+- **🔄 Resilience Patterns**: Built-in retry and circuit breaker decorators
+- **♻️ Lifecycle Management**: Automatic component initialization and cleanup
+- **🏥 Health Checks**: Comprehensive diagnostics for all framework components
+- **🔧 CLI Tool**: Command-line interface for project management
+- **✅ Unit Tests**: 60%+ test coverage with comprehensive test suite
+- **📚 Enhanced Documentation**: API reference and troubleshooting guide
 
 ## 🏗️ Architecture
 
@@ -46,11 +57,13 @@ A **production-ready framework** for building multi-agent workflows with built-i
 
 - **[Framework Guide](docs/FRAMEWORK_GUIDE.md)** - How to use the framework (includes memory!)
 - **[Create Workflow](docs/CREATE_WORKFLOW.md)** - Step-by-step tutorial for building workflows
-- **[Observability Guide](docs/OBSERVABILITY_GUIDE.md)** - ⭐ NEW: Zero-code OTEL + LangFuse tracing
+- **[API Reference](docs/API_REFERENCE.md)** - ⭐ NEW: Complete API documentation
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - ⭐ NEW: Common issues and solutions
+- **[Observability Guide](docs/OBSERVABILITY_GUIDE.md)** - Zero-code OTEL + LangFuse tracing
+- **[Durability Guide](docs/DURABILITY_GUIDE.md)** - Checkpointing & resumption patterns
 - **[Memory Examples](examples/memory-examples/README.md)** - Memory management patterns
 - **[MCP Architecture](docs/MCP_ARCHITECTURE.md)** - Understanding MCP integration
 - **[Framework Architecture](docs/ARCHITECTURE.md)** - Framework internals
-- **[Durability](docs/DURABILITY.md)** - Checkpointing & resumption details
 
 ### Quick Links
 
@@ -58,6 +71,8 @@ A **production-ready framework** for building multi-agent workflows with built-i
 - **MCP Servers**: See `mcp-servers/` for tool server implementations
 - **Memory Feature**: Easy configuration - see `MEMORY_QUICK_START.md`
 - **Observability**: ⭐ NEW Zero-code tracing - see `docs/OBSERVABILITY_GUIDE.md`
+- **Framework Improvements**: ⭐ NEW See `FRAMEWORK_IMPROVEMENTS_SUMMARY.md` for v2.0 features
+- **CLI Tool**: ⭐ NEW Run `bin/framework --help` for framework commands
 
 ## 🚀 Quick Start
 

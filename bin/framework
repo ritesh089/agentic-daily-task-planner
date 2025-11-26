@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""
+Framework CLI Entry Point
+
+Usage:
+    framework health
+    framework init my-workflow --template conversational
+    framework validate examples/my-workflow/
+    framework config --validate
+"""
+
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import framework
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from framework.framework_cli import main
+
+if __name__ == '__main__':
+    sys.exit(main())
+
